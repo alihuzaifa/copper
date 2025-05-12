@@ -145,7 +145,7 @@ const TransactionHistory = () => {
                     <SelectValue placeholder="Filter by type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Types</SelectItem>
+                    <SelectItem value="all_types">All Types</SelectItem>
                     <SelectItem value="purchase">Purchase</SelectItem>
                     <SelectItem value="process">Process</SelectItem>
                     <SelectItem value="verify">Verify</SelectItem>
@@ -164,7 +164,7 @@ const TransactionHistory = () => {
                     <SelectValue placeholder="Filter by date" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Time</SelectItem>
+                    <SelectItem value="all_time">All Time</SelectItem>
                     <SelectItem value="today">Today</SelectItem>
                     <SelectItem value="week">Last 7 Days</SelectItem>
                     <SelectItem value="month">Last 30 Days</SelectItem>

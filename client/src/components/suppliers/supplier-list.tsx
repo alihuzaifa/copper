@@ -231,7 +231,7 @@ const SupplierList = () => {
                   <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   {isCategoriesLoading ? (
                     <SelectItem value="loading" disabled>
                       Loading categories...
