@@ -1,62 +1,76 @@
-import { createContext, ReactNode, useContext } from "react";
-import {
-  useQuery,
-  useMutation,
-  UseMutationResult,
-} from "@tanstack/react-query";
-import { insertUserSchema, User as SelectUser, InsertUser } from "@shared/schema";
-import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
+import { createContext, ReactNode, useContext, useState } from "react";
+import { useMutation, UseMutationResult } from "@tanstack/react-query";
+import { queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { API_ENDPOINTS } from "@/lib/constants";
+
+// Mock user type
+interface MockUser {
+  id: number;
+  name: string;
+  username: string;
+  email: string;
+  role: string;
+  isVerified: boolean;
+  createdAt: Date;
+}
 
 type AuthContextType = {
-  user: SelectUser | null;
+  user: MockUser | null;
   isLoading: boolean;
   error: Error | null;
-  loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
+  loginMutation: UseMutationResult<MockUser, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<RegisterResponse, Error, InsertUser>;
-  verifyOtpMutation: UseMutationResult<VerifyOtpResponse, Error, { otp: string }>;
-  resendOtpMutation: UseMutationResult<{ message: string }, Error, void>;
-  resetPasswordRequestMutation: UseMutationResult<{ message: string }, Error, { email: string }>;
-  resetPasswordMutation: UseMutationResult<{ message: string }, Error, ResetPasswordData>;
+  registerMutation: UseMutationResult<RegisterResponse, Error, RegisterData>;
 };
 
-type LoginData = Pick<InsertUser, "username" | "password">;
-type RegisterResponse = { 
-  user: SelectUser;
-  requiresVerification: boolean;
+type LoginData = {
+  username: string;
+  password: string;
 };
-type VerifyOtpResponse = {
-  message: string;
-  user: SelectUser;
-};
-type ResetPasswordData = {
+
+type RegisterData = {
+  name: string;
+  username: string;
   email: string;
-  otp: string;
-  newPassword: string;
+  password: string;
+};
+
+type RegisterResponse = { 
+  user: MockUser;
+  requiresVerification: boolean;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
-  const {
-    data: user,
-    error,
-    isLoading,
-  } = useQuery<SelectUser | undefined, Error>({
-    queryKey: [API_ENDPOINTS.auth.user],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+  // Use useState for mock data
+  const [user] = useState<MockUser>({
+    id: 1,
+    name: "Mock User",
+    username: "admin",
+    email: "admin@example.com",
+    role: "admin",
+    isVerified: true,
+    createdAt: new Date(),
   });
+  
+  const isLoading = false;
+  const error = null;
 
+  // Mock login mutation that simulates API call
   const loginMutation = useMutation({
-    mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.auth.login, credentials);
-      return await res.json();
+    mutationFn: async (credentials: LoginData): Promise<MockUser> => {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Always return success for mock data
+      return user;
     },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData([API_ENDPOINTS.auth.user], user);
+    onSuccess: (user: MockUser) => {
+      // Set the user in the query cache
+      queryClient.setQueryData(["/api/user"], user);
+      
       toast({
         title: "Login successful",
         description: `Welcome back, ${user.name}`,
@@ -71,24 +85,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Mock registration mutation
   const registerMutation = useMutation({
-    mutationFn: async (userData: InsertUser) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.auth.register, userData);
-      return await res.json();
+    mutationFn: async (userData: RegisterData): Promise<RegisterResponse> => {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Create a new mock user
+      const newUser: MockUser = {
+        id: Math.floor(Math.random() * 1000),
+        name: userData.name,
+        username: userData.username,
+        email: userData.email,
+        role: "user",
+        isVerified: true,
+        createdAt: new Date(),
+      };
+      
+      return {
+        user: newUser,
+        requiresVerification: false
+      };
     },
     onSuccess: (data: RegisterResponse) => {
-      queryClient.setQueryData([API_ENDPOINTS.auth.user], data.user);
-      if (data.requiresVerification) {
-        toast({
-          title: "Registration successful",
-          description: "Please verify your account with the OTP sent to your email.",
-        });
-      } else {
-        toast({
-          title: "Registration successful",
-          description: "Your account has been created successfully.",
-        });
-      }
+      queryClient.setQueryData(["/api/user"], data.user);
+      toast({
+        title: "Registration successful",
+        description: "Your account has been created successfully.",
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -99,93 +123,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const verifyOtpMutation = useMutation({
-    mutationFn: async (data: { otp: string }) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.auth.verifyOtp, data);
-      return await res.json();
-    },
-    onSuccess: (data: VerifyOtpResponse) => {
-      queryClient.setQueryData([API_ENDPOINTS.auth.user], data.user);
-      toast({
-        title: "Verification successful",
-        description: "Your account has been verified successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Verification failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const resendOtpMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", API_ENDPOINTS.auth.resendOtp);
-      return await res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "OTP sent",
-        description: "A new OTP has been sent to your email.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to send OTP",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const resetPasswordRequestMutation = useMutation({
-    mutationFn: async (data: { email: string }) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.auth.resetPasswordRequest, data);
-      return await res.json();
-    },
-    onSuccess: (data: { message: string }) => {
-      toast({
-        title: "Reset password request sent",
-        description: data.message,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to request password reset",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const resetPasswordMutation = useMutation({
-    mutationFn: async (data: ResetPasswordData) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.auth.resetPassword, data);
-      return await res.json();
-    },
-    onSuccess: (data: { message: string }) => {
-      toast({
-        title: "Password reset successful",
-        description: data.message,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to reset password",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
+  // Mock logout mutation
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", API_ENDPOINTS.auth.logout);
+    mutationFn: async (): Promise<void> => {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return;
     },
     onSuccess: () => {
-      queryClient.setQueryData([API_ENDPOINTS.auth.user], null);
+      queryClient.setQueryData(["/api/user"], null);
       toast({
         title: "Logout successful",
         description: "You have been logged out.",
@@ -203,16 +149,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user: user ?? null,
+        user,
         isLoading,
         error,
         loginMutation,
         logoutMutation,
         registerMutation,
-        verifyOtpMutation,
-        resendOtpMutation,
-        resetPasswordRequestMutation,
-        resetPasswordMutation,
       }}
     >
       {children}
