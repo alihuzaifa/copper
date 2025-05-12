@@ -666,7 +666,7 @@ const ProductionPage = () => {
                     </div>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Statuses</SelectItem>
+                    <SelectItem value="all">All Statuses</SelectItem>
                     {STATUS_OPTIONS.map((status) => (
                       <SelectItem key={status.value} value={status.value}>
                         {status.label}
