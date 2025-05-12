@@ -24,11 +24,14 @@ const AuthPage = () => {
       {/* Hero Banner */}
       <div className="w-full md:w-1/2 bg-primary hidden md:flex flex-col items-center justify-center text-white p-8">
         <div className="max-w-md">
-          <h1 className="text-3xl font-bold mb-6">
-            Copper Manufacturing Stock Management System
+          <h1 className="text-4xl font-bold mb-4">
+            CopperWire Pro
           </h1>
+          <h2 className="text-2xl font-medium mb-3">
+            Advanced Wire Manufacturing Management
+          </h2>
           <p className="text-lg mb-8">
-            A comprehensive solution for managing your copper manufacturing inventory and workflow.
+            The enterprise solution for comprehensive copper wire manufacturing management, inventory tracking, and workflow optimization.
           </p>
           
           <div className="space-y-4">

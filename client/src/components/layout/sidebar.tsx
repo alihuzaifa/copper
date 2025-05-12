@@ -61,9 +61,9 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-bold">
-              CM
+              CW
             </div>
-            <span className="text-lg font-bold font-sans">CopperMgmt</span>
+            <span className="text-lg font-bold font-sans">CopperWire Pro</span>
           </div>
         </div>
       </div>
