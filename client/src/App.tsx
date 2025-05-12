@@ -1,6 +1,4 @@
 import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ProtectedRoute } from "./lib/protected-route";
@@ -12,6 +10,7 @@ import CategoriesPage from "@/pages/categories-page";
 import TransactionHistory from "@/pages/transaction-history";
 import ProfilePage from "@/pages/profile";
 import SettingsPage from "@/pages/settings";
+import UserCreationPage from "@/pages/user-creation";
 
 // Workflow pages
 import PurchaseManagement from "@/pages/workflow/purchase-management";
@@ -35,6 +34,7 @@ function Router() {
       <ProtectedRoute path="/transactions" component={TransactionHistory} />
       <ProtectedRoute path="/profile" component={ProfilePage} />
       <ProtectedRoute path="/settings" component={SettingsPage} />
+      <ProtectedRoute path="/users/create" component={UserCreationPage} />
       
       {/* Workflow Routes */}
       <ProtectedRoute path="/workflow/purchase-management" component={PurchaseManagement} />
@@ -52,12 +52,10 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <TooltipProvider>
+      <Toaster />
+      <Router />
+    </TooltipProvider>
   );
 }
 
