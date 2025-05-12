@@ -34,11 +34,27 @@ import { Button } from "@/components/ui/button";
 // Simulating mock data storage
 import { useEffect } from "react";
 
-// Define our mock user storage (this would normally be in a context or state management)
-const mockUsers = {
-  suppliers: [],
-  meltingUsers: [],
-  drawers: [],
+// Interface for our mock user type
+interface MockUser {
+  id: number;
+  name: string;
+  phoneNumber: string | null;
+  createdAt: string;
+}
+
+// Interface for our mock data store
+interface MockDataStore {
+  suppliers: MockUser[];
+  meltingUsers: MockUser[];
+  drawers: MockUser[];
+}
+
+// Define a global store for our mock data
+// This is a workaround for the scope issue - in a real app we'd use context or state management
+const mockStore = {
+  suppliers: [] as MockUser[],
+  meltingUsers: [] as MockUser[],
+  drawers: [] as MockUser[]
 };
 
 const formSchema = z.object({
@@ -53,7 +69,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 const UserCreationPage = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<FormValues>({
@@ -71,7 +87,7 @@ const UserCreationPage = () => {
     // Simulate API call with timeout
     setTimeout(() => {
       // Add the user to the appropriate mock storage based on type
-      const newUser = {
+      const newUser: MockUser = {
         id: Math.floor(Math.random() * 10000),
         name: data.name,
         phoneNumber: data.phoneNumber || null,
@@ -80,13 +96,19 @@ const UserCreationPage = () => {
       
       switch (data.userType) {
         case "supplier":
-          mockUsers.suppliers.push(newUser);
+          mockStore.suppliers.push(newUser);
+          console.log("Added supplier:", newUser);
+          console.log("Current suppliers:", mockStore.suppliers);
           break;
         case "meltingUser":
-          mockUsers.meltingUsers.push(newUser);
+          mockStore.meltingUsers.push(newUser);
+          console.log("Added melting user:", newUser);
+          console.log("Current melting users:", mockStore.meltingUsers);
           break;
         case "drawer":
-          mockUsers.drawers.push(newUser);
+          mockStore.drawers.push(newUser);
+          console.log("Added drawer:", newUser);
+          console.log("Current drawers:", mockStore.drawers);
           break;
       }
       
