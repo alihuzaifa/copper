@@ -381,9 +381,9 @@ const ReadyCopperPage = () => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {STATUS_OPTIONS.map((status) => (
-                                <SelectItem key={status.value} value={status.value}>
-                                  {status.label}
+                              {STATUS_OPTIONS.readyCopper.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                  {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -450,9 +450,9 @@ const ReadyCopperPage = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    {STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status.value} value={status.value}>
-                        {status.label}
+                    {STATUS_OPTIONS.readyCopper.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -566,9 +566,9 @@ const ReadyCopperPage = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status.value} value={status.value}>
-                              {status.label}
+                          {STATUS_OPTIONS.readyCopper.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
                             </SelectItem>
                           ))}
                         </SelectContent>
