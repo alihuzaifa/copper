@@ -125,15 +125,15 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
             </p>
           </div>
           
-          <Link href="/suppliers">
+          <Link href="/users">
             <a className={cn(
               "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-              location === "/suppliers" 
+              location === "/users" 
                 ? "bg-primary text-white"
                 : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
             )}>
               <Users className="mr-3 h-5 w-5" />
-              Suppliers
+              Users
             </a>
           </Link>
           

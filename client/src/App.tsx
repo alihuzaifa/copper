@@ -11,6 +11,7 @@ import TransactionHistory from "@/pages/transaction-history";
 import ProfilePage from "@/pages/profile";
 import SettingsPage from "@/pages/settings";
 import UserCreationPage from "@/pages/user-creation";
+import UsersPage from "@/pages/users-page";
 
 // Workflow pages
 import PurchaseManagement from "@/pages/workflow/purchase-management";
@@ -29,7 +30,7 @@ function Router() {
       {/* Protected Routes */}
       <ProtectedRoute path="/" component={Dashboard} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
-      <ProtectedRoute path="/suppliers" component={SuppliersPage} />
+      <ProtectedRoute path="/users" component={UsersPage} />
       <ProtectedRoute path="/categories" component={CategoriesPage} />
       <ProtectedRoute path="/transactions" component={TransactionHistory} />
       <ProtectedRoute path="/profile" component={ProfilePage} />

@@ -29,8 +29,8 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
   useEffect(() => {
     if (location === "/dashboard") {
       setPageTitle("Dashboard");
-    } else if (location === "/suppliers") {
-      setPageTitle("Suppliers");
+    } else if (location === "/users") {
+      setPageTitle("Users");
     } else if (location === "/categories") {
       setPageTitle("Categories");
     } else if (location === "/transactions") {

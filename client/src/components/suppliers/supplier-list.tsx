@@ -1,31 +1,19 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Supplier, SupplierCategory } from "@shared/schema";
-import { API_ENDPOINTS } from "@/lib/constants";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -35,14 +23,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { 
-  Plus, 
-  MoreHorizontal, 
-  Pencil, 
-  Trash2, 
+import {
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
   Search,
   Filter,
-  Loader2 
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -53,68 +40,73 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import SupplierForm from "./supplier-form";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+const initialCategories = [
+  { id: 1, name: "Supplier" },
+  { id: 2, name: "User" },
+  { id: 3, name: "Khata User" },
+  { id: 4, name: "Vendor" },
+  { id: 5, name: "Darwer" },
+];
+
+const initialSuppliers = [
+  {
+    id: 1,
+    name: "Copper Inc.",
+    phone: "1234567890",
+    categoryId: 1,
+    isActive: true,
+  },
+];
 
 const SupplierList = () => {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const [suppliers, setSuppliers] = useState(initialSuppliers);
+  const [categories] = useState(initialCategories);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editSupplier, setEditSupplier] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
 
-  const { data: suppliers, isLoading: isSuppliersLoading } = useQuery<Supplier[]>({
-    queryKey: [API_ENDPOINTS.suppliers],
-  });
-
-  const { data: categories, isLoading: isCategoriesLoading } = useQuery<SupplierCategory[]>({
-    queryKey: [API_ENDPOINTS.categories.supplierCategories],
-  });
-
-  const deleteSupplierMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("DELETE", `${API_ENDPOINTS.suppliers}/${id}`);
-      if (!res.ok) {
-        throw new Error("Failed to delete supplier");
-      }
-      return true;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.suppliers] });
-      toast({
-        title: "Supplier deleted",
-        description: "The supplier has been deleted successfully.",
-      });
-      setIsDeleteDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleDeleteSupplier = () => {
-    if (selectedSupplier) {
-      deleteSupplierMutation.mutate(selectedSupplier.id);
-    }
+  const handleAdd = (data: any) => {
+    setSuppliers((prev) => [
+      ...prev,
+      { ...data, id: Date.now(), isActive: true },
+    ]);
+    setModalOpen(false);
   };
 
-  const filteredSuppliers = suppliers
-    ? suppliers.filter((supplier) => {
-        const matchesSearch = searchTerm === "" || 
-          supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (supplier.email && supplier.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (supplier.phone && supplier.phone.includes(searchTerm));
-          
-        const matchesCategory = categoryFilter === "" || supplier.categoryId?.toString() === categoryFilter;
-        
-        return matchesSearch && matchesCategory;
-      })
-    : [];
+  const handleEdit = (data: any) => {
+    setSuppliers((prev) =>
+      prev.map((s) => (s.id === data.id ? { ...s, ...data } : s))
+    );
+    setModalOpen(false);
+    setEditSupplier(null);
+  };
+
+  const handleDelete = () => {
+    setSuppliers((prev) => prev.filter((s) => s.id !== selectedSupplier.id));
+    setDeleteDialogOpen(false);
+    setSelectedSupplier(null);
+  };
+
+  const filteredSuppliers = suppliers.filter((supplier) => {
+    const matchesSearch =
+      searchTerm === "" ||
+      supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (supplier.phone && supplier.phone.includes(searchTerm));
+    const matchesCategory =
+      categoryFilter === "all" || supplier.categoryId?.toString() === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
 
   const columns = [
     {
@@ -124,36 +116,32 @@ const SupplierList = () => {
     {
       header: "Phone",
       accessorKey: "phone",
-      cell: (row: Supplier) => row.phone || "N/A",
-    },
-    {
-      header: "Email",
-      accessorKey: "email",
-      cell: (row: Supplier) => row.email || "N/A",
+      cell: (row: any) => row.phone || "N/A",
     },
     {
       header: "Category",
-      accessorKey: (row: Supplier) => {
-        const category = categories?.find(c => c.id === row.categoryId);
+      accessorKey: (row: any) => {
+        const category = categories.find((c) => c.id === row.categoryId);
         return category ? category.name : "N/A";
       },
     },
     {
       header: "Status",
       accessorKey: "isActive",
-      cell: (row: Supplier) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          row.isActive 
-            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" 
-            : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-        }`}>
+      cell: (row: any) => (
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium ${row.isActive
+              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+            }`}
+        >
           {row.isActive ? "Active" : "Inactive"}
         </span>
       ),
     },
     {
       header: "Actions",
-      accessorKey: (row: Supplier) => (
+      accessorKey: (row: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
@@ -163,8 +151,8 @@ const SupplierList = () => {
           <DropdownMenuContent align="end">
             <DropdownMenuItem
               onClick={() => {
-                setSelectedSupplier(row);
-                setIsEditDialogOpen(true);
+                setEditSupplier(row);
+                setModalOpen(true);
               }}
             >
               <Pencil className="mr-2 h-4 w-4" />
@@ -173,7 +161,7 @@ const SupplierList = () => {
             <DropdownMenuItem
               onClick={() => {
                 setSelectedSupplier(row);
-                setIsDeleteDialogOpen(true);
+                setDeleteDialogOpen(true);
               }}
               className="text-red-600 dark:text-red-400"
             >
@@ -190,21 +178,27 @@ const SupplierList = () => {
     <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg font-sans">Suppliers</CardTitle>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <CardTitle className="text-lg font-sans">Users</CardTitle>
+          <Dialog open={modalOpen} onOpenChange={(open) => {
+            setModalOpen(open);
+            if (!open) setEditSupplier(null);
+          }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => { setEditSupplier(null); setModalOpen(true); }}>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Supplier
+                Add User
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>Add New Supplier</DialogTitle>
+                <DialogTitle>{editSupplier ? "Edit User" : "Add User"}</DialogTitle>
               </DialogHeader>
-              <SupplierForm 
-                onSuccess={() => setIsAddDialogOpen(false)} 
-                onCancel={() => setIsAddDialogOpen(false)} 
+              <SupplierForm
+                supplier={editSupplier}
+                categories={categories}
+                onSubmit={editSupplier ? handleEdit : handleAdd}
+                onCancel={() => { setModalOpen(false); setEditSupplier(null); }}
+                isUserPage={true}
               />
             </DialogContent>
           </Dialog>
@@ -232,71 +226,37 @@ const SupplierList = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {isCategoriesLoading ? (
-                    <SelectItem value="loading" disabled>
-                      Loading categories...
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id.toString()}>
+                      {category.name}
                     </SelectItem>
-                  ) : categories && categories.length > 0 ? (
-                    categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id.toString()}>
-                        {category.name}
-                      </SelectItem>
-                    ))
-                  ) : null}
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           {/* Suppliers table */}
-          <DataTable
-            columns={columns}
-            data={filteredSuppliers}
-            isLoading={isSuppliersLoading}
-          />
+          <DataTable columns={columns as any} data={filteredSuppliers} isLoading={false} />
         </CardContent>
       </Card>
 
-      {/* Edit supplier dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Edit Supplier</DialogTitle>
-          </DialogHeader>
-          {selectedSupplier && (
-            <SupplierForm
-              supplier={selectedSupplier}
-              onSuccess={() => setIsEditDialogOpen(false)}
-              onCancel={() => setIsEditDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
       {/* Delete confirmation dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the supplier "{selectedSupplier?.name}". This action cannot be undone.
+              This will permanently delete the user "{selectedSupplier?.name}". This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteSupplier}
+            <AlertDialogAction
+              onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700 text-white"
-              disabled={deleteSupplierMutation.isPending}
             >
-              {deleteSupplierMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

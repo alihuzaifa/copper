@@ -22,7 +22,7 @@ const QuickActions = () => {
           </Button>
         </Link>
         
-        <Link href="/suppliers">
+        <Link href="/users">
           <Button 
             variant="outline" 
             className="w-full flex items-center justify-center"
