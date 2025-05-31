@@ -1,15 +1,29 @@
+// --- Local interfaces ---
+interface Supplier {
+  id: number;
+  name: string;
+}
+interface PvcPurchase {
+  id: number;
+  supplierId: number;
+  pvcColor: string;
+  quantity: number;
+  unit: string;
+  pricePerUnit: number;
+  totalPrice: number;
+  invoiceNumber?: string;
+  purchaseDate: string;
+  status: string;
+  createdBy?: number;
+  notes?: string;
+}
+
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import WorkflowStages from "@/components/layout/workflow-stages";
 import { DataTable } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
-import { API_ENDPOINTS, STATUS_OPTIONS, UNIT_OPTIONS } from "@/lib/constants";
-import { PvcPurchase, Supplier, insertPvcPurchaseSchema } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -50,89 +64,46 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Plus, MoreHorizontal, Pencil, Search, Filter, Loader2 } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Search, Filter } from "lucide-react";
 
-// Form schema for creating/editing PVC purchases
-const pvcPurchaseFormSchema = insertPvcPurchaseSchema.extend({
+// Dummy constants for local use
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "received", label: "Received" },
+  { value: "cancelled", label: "Cancelled" },
+];
+const UNIT_OPTIONS = ["kg", "meter", "roll"];
+const dummySuppliers: Supplier[] = [
+  { id: 1, name: "Supplier A" },
+  { id: 2, name: "Supplier B" },
+  { id: 3, name: "Supplier C" },
+];
+
+// Local Zod schema for the form
+const pvcPurchaseFormSchema = z.object({
   supplierId: z.coerce.number().min(1, "Please select a supplier"),
+  pvcColor: z.string().min(1, "Please enter a PVC color"),
   quantity: z.coerce.number().positive("Quantity must be positive"),
+  unit: z.string().min(1, "Please select a unit"),
   pricePerUnit: z.coerce.number().positive("Price per unit must be positive"),
   totalPrice: z.coerce.number().positive("Total price must be positive"),
-  pvcColor: z.string().min(1, "Please enter a PVC color"),
+  invoiceNumber: z.string().optional(),
+  purchaseDate: z.string().optional(),
   status: z.string().min(1, "Please select a status"),
+  createdBy: z.number().optional(),
+  notes: z.string().optional(),
 });
 
 type PvcPurchaseFormValues = z.infer<typeof pvcPurchaseFormSchema>;
 
 const PvcPurchasePage = () => {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<PvcPurchase | null>(null);
-
-  // Fetch PVC purchases
-  const { data: pvcPurchases, isLoading: isPvcPurchasesLoading } = useQuery<PvcPurchase[]>({
-    queryKey: [API_ENDPOINTS.workflow.pvcPurchases],
-  });
-
-  // Fetch suppliers
-  const { data: suppliers, isLoading: isSuppliersLoading } = useQuery<Supplier[]>({
-    queryKey: [API_ENDPOINTS.suppliers],
-  });
-
-  // Create PVC purchase mutation
-  const createPvcPurchaseMutation = useMutation({
-    mutationFn: async (data: PvcPurchaseFormValues) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.workflow.pvcPurchases, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.pvcPurchases] });
-      toast({
-        title: "PVC purchase created",
-        description: "The PVC purchase has been created successfully.",
-      });
-      setIsAddDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Update PVC purchase mutation
-  const updatePvcPurchaseMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<PvcPurchaseFormValues> }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `${API_ENDPOINTS.workflow.pvcPurchases}/${id}`,
-        data
-      );
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.pvcPurchases] });
-      toast({
-        title: "PVC purchase updated",
-        description: "The PVC purchase has been updated successfully.",
-      });
-      setIsEditDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const [pvcPurchases, setPvcPurchases] = useState<PvcPurchase[]>([]);
+  const [suppliers] = useState<Supplier[]>(dummySuppliers);
 
   // Create PVC purchase form
   const createForm = useForm<PvcPurchaseFormValues>({
@@ -147,7 +118,7 @@ const PvcPurchasePage = () => {
       invoiceNumber: "",
       purchaseDate: new Date().toISOString(),
       status: "pending",
-      createdBy: user?.id,
+      createdBy: undefined,
       notes: "",
     },
   });
@@ -217,46 +188,58 @@ const PvcPurchasePage = () => {
     }
   });
 
+  // Add new PVC purchase
   const onCreateSubmit = (data: PvcPurchaseFormValues) => {
-    createPvcPurchaseMutation.mutate({
+    const newPurchase: PvcPurchase = {
+      id: Date.now(),
       ...data,
-      createdBy: user?.id,
-    });
+      purchaseDate: data.purchaseDate || new Date().toISOString(),
+    };
+    setPvcPurchases((prev) => [newPurchase, ...prev]);
+    setIsAddDialogOpen(false);
+    createForm.reset();
   };
 
+  // Edit existing PVC purchase
   const onEditSubmit = (data: PvcPurchaseFormValues) => {
     if (selectedPurchase) {
-      updatePvcPurchaseMutation.mutate({
-        id: selectedPurchase.id,
-        data,
-      });
+      setPvcPurchases((prev) =>
+        prev.map((p) =>
+          p.id === selectedPurchase.id
+            ? { ...p, ...data, purchaseDate: data.purchaseDate || p.purchaseDate }
+            : p
+        )
+      );
+      setIsEditDialogOpen(false);
+      setSelectedPurchase(null);
     }
   };
 
   // Filter purchases based on search and status
-  const filteredPurchases = pvcPurchases
-    ? pvcPurchases.filter((purchase) => {
-        const matchesSearch =
-          searchTerm === "" ||
-          purchase.pvcColor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          purchase.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          purchase.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesStatus = statusFilter === "" || purchase.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-      })
-    : [];
+  const filteredPurchases = pvcPurchases.filter((purchase) => {
+    const matchesSearch =
+      searchTerm === "" ||
+      purchase.pvcColor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      purchase.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      purchase.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "" || purchase.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   // Sort by purchase date (newest first)
   const sortedPurchases = [...filteredPurchases].sort(
     (a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
   );
 
-  const columns = [
+  // DataTable columns
+  const columns: {
+    header: string;
+    accessorKey: keyof PvcPurchase | ((row: PvcPurchase) => React.ReactNode);
+    cell?: (row: PvcPurchase) => React.ReactNode;
+  }[] = [
     {
       header: "ID",
-      accessorKey: (row: PvcPurchase) => `PVC-${row.id.toString().padStart(4, "0")}`,
+      accessorKey: (row) => `PVC-${row.id.toString().padStart(4, "0")}`,
     },
     {
       header: "Color",
@@ -264,34 +247,33 @@ const PvcPurchasePage = () => {
     },
     {
       header: "Supplier",
-      accessorKey: (row: PvcPurchase) => {
-        const supplier = suppliers?.find((s) => s.id === row.supplierId);
+      accessorKey: (row) => {
+        const supplier = suppliers.find((s) => s.id === row.supplierId);
         return supplier ? supplier.name : "N/A";
       },
     },
     {
       header: "Quantity",
-      accessorKey: (row: PvcPurchase) =>
-        `${Number(row.quantity).toLocaleString()} ${row.unit}`,
+      accessorKey: (row) => `${Number(row.quantity).toLocaleString()} ${row.unit}`,
     },
     {
       header: "Total Price",
-      accessorKey: (row: PvcPurchase) =>
-        `₹${Number(row.totalPrice).toLocaleString("en-IN")}`,
+      accessorKey: (row) => `₹${Number(row.totalPrice).toLocaleString("en-IN")}`,
     },
     {
       header: "Date",
       accessorKey: "purchaseDate",
-      cell: (row: PvcPurchase) => format(new Date(row.purchaseDate), "MMM dd, yyyy"),
+      cell: (row) => format(new Date(row.purchaseDate), "MMM dd, yyyy"),
     },
     {
       header: "Status",
       accessorKey: "status",
-      cell: (row: PvcPurchase) => <StatusBadge status={row.status} />,
+      cell: (row) => <StatusBadge status={row.status} />,
     },
     {
       header: "Actions",
-      accessorKey: (row: PvcPurchase) => (
+      accessorKey: "id",
+      cell: (row) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
@@ -359,11 +341,7 @@ const PvcPurchasePage = () => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {isSuppliersLoading ? (
-                                <SelectItem value="loading" disabled>
-                                  Loading suppliers...
-                                </SelectItem>
-                              ) : suppliers && suppliers.length > 0 ? (
+                              {suppliers.length > 0 ? (
                                 suppliers.map((supplier) => (
                                   <SelectItem key={supplier.id} value={supplier.id.toString()}>
                                     {supplier.name}
@@ -566,11 +544,7 @@ const PvcPurchasePage = () => {
                       </Button>
                       <Button
                         type="submit"
-                        disabled={createPvcPurchaseMutation.isPending}
                       >
-                        {createPvcPurchaseMutation.isPending && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
                         Save
                       </Button>
                     </div>
@@ -616,7 +590,6 @@ const PvcPurchasePage = () => {
             <DataTable
               columns={columns}
               data={sortedPurchases}
-              isLoading={isPvcPurchasesLoading}
             />
           </CardContent>
         </Card>
@@ -645,11 +618,7 @@ const PvcPurchasePage = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {isSuppliersLoading ? (
-                            <SelectItem value="loading" disabled>
-                              Loading suppliers...
-                            </SelectItem>
-                          ) : suppliers && suppliers.length > 0 ? (
+                          {suppliers.length > 0 ? (
                             suppliers.map((supplier) => (
                               <SelectItem key={supplier.id} value={supplier.id.toString()}>
                                 {supplier.name}
@@ -852,11 +821,7 @@ const PvcPurchasePage = () => {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={updatePvcPurchaseMutation.isPending}
                   >
-                    {updatePvcPurchaseMutation.isPending && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
                     Update
                   </Button>
                 </div>

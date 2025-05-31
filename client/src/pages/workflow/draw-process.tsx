@@ -1,39 +1,15 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import WorkflowStages from "@/components/layout/workflow-stages";
-import { DataTable } from "@/components/ui/data-table";
-import StatusBadge from "@/components/ui/status-badge";
-import { API_ENDPOINTS, STATUS_OPTIONS } from "@/lib/constants";
-import { DrawProcess, KachaProcessing, DrawerCategory, insertDrawProcessSchema } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
+  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -41,847 +17,609 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Plus, MoreHorizontal, Pencil, Search, Filter, Loader2 } from "lucide-react";
+import { Plus, Eye } from "lucide-react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import dayjs from "dayjs";
 
-// Form schema for creating/editing draw process
-const drawProcessFormSchema = insertDrawProcessSchema.extend({
-  kachaId: z.coerce.number().min(1, "Please select a kacha process"),
-  categoryId: z.coerce.number().min(1, "Please select a drawer category"),
-  inputQuantity: z.coerce.number().positive("Input quantity must be positive"),
-  outputQuantity: z.coerce.number().positive("Output quantity must be positive"),
-  wireSize: z.string().min(1, "Please enter wire size"),
-  wastage: z.coerce.number().optional(),
-  status: z.string().min(1, "Please select a status"),
+// Dummy data
+const dummyDrawerUsers = [
+  { id: 1, name: "Drawer User 1" },
+  { id: 2, name: "Drawer User 2" },
+  { id: 3, name: "Drawer User 3" },
+];
+const dummyKachaProducts = [
+  { id: 1, name: "Kacha Product 1" },
+  { id: 2, name: "Kacha Product 2" },
+  { id: 3, name: "Kacha Product 3" },
+];
+
+const drawProcessingSchema = z.object({
+  drawerUserId: z.string().min(1, "Select a Drawer User"),
+  kachaProductId: z.string().min(1, "Select a Kacha Product"),
+  quantity: z.coerce.number().positive("Enter a valid quantity"),
+  totalAmount: z.coerce.number().positive("Enter a valid total amount"),
 });
 
-type DrawProcessFormValues = z.infer<typeof drawProcessFormSchema>;
+function DrawProcessingForm({ onSubmit, onCancel, users, products }: any) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, touchedFields },
+    control,
+  } = useForm({
+    resolver: zodResolver(drawProcessingSchema),
+    defaultValues: {
+      drawerUserId: "",
+      kachaProductId: "",
+      quantity: "",
+      totalAmount: "",
+    },
+    mode: "onTouched",
+  });
+
+  const inputStyles = {
+    base: "border px-3 py-2 rounded-md outline-none transition-colors w-full",
+    valid: "border-green-500",
+    invalid: "border-red-500",
+    default: "border-gray-300 dark:border-gray-700",
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit((data) => {
+        onSubmit({
+          drawerUserId: parseInt(data.drawerUserId),
+          kachaProductId: parseInt(data.kachaProductId),
+          quantity: Number(data.quantity),
+          totalAmount: Number(data.totalAmount),
+        });
+      })}
+      className="space-y-4"
+    >
+      <div>
+        <label className="block mb-1 font-medium">Drawer User</label>
+        <Controller
+          name="drawerUserId"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  field.onChange(v);
+                  field.onBlur();
+                }}
+              >
+                <SelectTrigger
+                  className={
+                    inputStyles.base +
+                    " " +
+                    (fieldState.invalid
+                      ? inputStyles.invalid
+                      : fieldState.isTouched && field.value
+                      ? inputStyles.valid
+                      : inputStyles.default) +
+                    " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                  }
+                >
+                  <SelectValue placeholder="Select a Drawer User" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id.toString()}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldState.invalid && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.drawerUserId?.message as string}
+                </div>
+              )}
+            </>
+          )}
+        />
+      </div>
+      <div>
+        <label className="block mb-1 font-medium">Kacha Product</label>
+        <Controller
+          name="kachaProductId"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  field.onChange(v);
+                  field.onBlur();
+                }}
+              >
+                <SelectTrigger
+                  className={
+                    inputStyles.base +
+                    " " +
+                    (fieldState.invalid
+                      ? inputStyles.invalid
+                      : fieldState.isTouched && field.value
+                      ? inputStyles.valid
+                      : inputStyles.default) +
+                    " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                  }
+                >
+                  <SelectValue placeholder="Select a Kacha Product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((item: any) => (
+                    <SelectItem key={item.id} value={item.id.toString()}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldState.invalid && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.kachaProductId?.message as string}
+                </div>
+              )}
+            </>
+          )}
+        />
+      </div>
+      <div>
+        <label className="block mb-1 font-medium">Quantity</label>
+        <input
+          {...register("quantity")}
+          placeholder="Enter quantity"
+          type="number"
+          className={
+            inputStyles.base +
+            " " +
+            (errors.quantity
+              ? inputStyles.invalid
+              : touchedFields.quantity
+              ? inputStyles.valid
+              : inputStyles.default) +
+            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+          }
+        />
+        {errors.quantity && (
+          <div className="text-red-600 text-xs mt-1">
+            {errors.quantity.message as string}
+          </div>
+        )}
+      </div>
+      <div>
+        <label className="block mb-1 font-medium">Total Amount</label>
+        <input
+          {...register("totalAmount")}
+          placeholder="Enter total amount"
+          type="number"
+          className={
+            inputStyles.base +
+            " " +
+            (errors.totalAmount
+              ? inputStyles.invalid
+              : touchedFields.totalAmount
+              ? inputStyles.valid
+              : inputStyles.default) +
+            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+          }
+        />
+        {errors.totalAmount && (
+          <div className="text-red-600 text-xs mt-1">
+            {errors.totalAmount.message as string}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit">Add</Button>
+      </div>
+    </form>
+  );
+}
 
 const DrawProcessPage = () => {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedProcess, setSelectedProcess] = useState<DrawProcess | null>(null);
+  const [drawerUsers] = useState(dummyDrawerUsers);
+  const [kachaProducts] = useState(dummyKachaProducts);
+  const [records, setRecords] = useState<any[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // Fetch draw processes
-  const { data: drawProcesses, isLoading: isDrawProcessesLoading } = useQuery<DrawProcess[]>({
-    queryKey: [API_ENDPOINTS.workflow.drawProcess],
-  });
+  // Remove from Draw dialog state
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [removeDrawerUserId, setRemoveDrawerUserId] = useState("");
+  const [removeKachaProductId, setRemoveKachaProductId] = useState("");
+  const [removeQuantity, setRemoveQuantity] = useState("");
+  const [removeError, setRemoveError] = useState("");
 
-  // Fetch kacha processes (to select from)
-  const { data: kachaProcesses, isLoading: isKachaProcessesLoading } = useQuery<KachaProcessing[]>({
-    queryKey: [API_ENDPOINTS.workflow.kachaProcessing],
-  });
+  // History state
+  const [history, setHistory] = useState<any[]>([]);
+  // For per-row history modal
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyModalDrawerUserId, setHistoryModalDrawerUserId] = useState("");
+  const [historyModalKachaProductId, setHistoryModalKachaProductId] = useState("");
 
-  // Fetch drawer categories
-  const { data: drawerCategories, isLoading: isDrawerCategoriesLoading } = useQuery<DrawerCategory[]>({
-    queryKey: [API_ENDPOINTS.categories.drawerCategories],
-  });
-
-  // Create draw process mutation
-  const createDrawProcessMutation = useMutation({
-    mutationFn: async (data: DrawProcessFormValues) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.workflow.drawProcess, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.drawProcess] });
-      toast({
-        title: "Draw process created",
-        description: "The draw process record has been created successfully.",
-      });
-      setIsAddDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Update draw process mutation
-  const updateDrawProcessMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<DrawProcessFormValues> }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `${API_ENDPOINTS.workflow.drawProcess}/${id}`,
-        data
-      );
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.drawProcess] });
-      toast({
-        title: "Draw process updated",
-        description: "The draw process record has been updated successfully.",
-      });
-      setIsEditDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Create draw process form
-  const createForm = useForm<DrawProcessFormValues>({
-    resolver: zodResolver(drawProcessFormSchema),
-    defaultValues: {
-      kachaId: undefined,
-      categoryId: undefined,
-      drawOperatorId: user?.id,
-      inputQuantity: undefined,
-      outputQuantity: undefined,
-      wireSize: "",
-      wastage: undefined,
-      processDate: new Date().toISOString(),
-      status: "in_progress",
-      notes: "",
-    },
-  });
-
-  // Watch input and output quantities to auto-calculate wastage
-  const watchInputQuantity = createForm.watch("inputQuantity");
-  const watchOutputQuantity = createForm.watch("outputQuantity");
-
-  // Update wastage when input or output quantity changes
-  useState(() => {
-    if (watchInputQuantity && watchOutputQuantity) {
-      const wastage = watchInputQuantity - watchOutputQuantity;
-      if (wastage >= 0) {
-        createForm.setValue("wastage", wastage);
-      }
+  const handleAdd = (data: any) => {
+    // Check if record exists for this user+product
+    const drawerUserId = parseInt(data.drawerUserId);
+    const kachaProductId = parseInt(data.kachaProductId);
+    const quantity = Number(data.quantity);
+    const totalAmount = Number(data.totalAmount);
+    const idx = records.findIndex(
+      (r) =>
+        r.drawerUserId === drawerUserId && r.kachaProductId === kachaProductId
+    );
+    let newRecords;
+    if (idx !== -1) {
+      // Update existing
+      const updated = { ...records[idx] };
+      updated.quantity += quantity;
+      updated.totalAmount += totalAmount;
+      newRecords = [...records];
+      newRecords[idx] = updated;
+    } else {
+      // Add new
+      const newRecord = {
+        id: Date.now(),
+        drawerUserId,
+        kachaProductId,
+        quantity,
+        totalAmount,
+      };
+      newRecords = [...records, newRecord];
     }
-  });
-
-  // Edit draw process form
-  const editForm = useForm<DrawProcessFormValues>({
-    resolver: zodResolver(drawProcessFormSchema.partial()),
-    defaultValues: {
-      kachaId: selectedProcess?.kachaId,
-      categoryId: selectedProcess?.categoryId,
-      drawOperatorId: selectedProcess?.drawOperatorId,
-      inputQuantity: selectedProcess?.inputQuantity ? Number(selectedProcess.inputQuantity) : undefined,
-      outputQuantity: selectedProcess?.outputQuantity ? Number(selectedProcess.outputQuantity) : undefined,
-      wireSize: selectedProcess?.wireSize || "",
-      wastage: selectedProcess?.wastage ? Number(selectedProcess.wastage) : undefined,
-      processDate: selectedProcess?.processDate,
-      status: selectedProcess?.status,
-      notes: selectedProcess?.notes || "",
-    },
-  });
-
-  // Update edit form when selected process changes
-  useState(() => {
-    if (selectedProcess) {
-      editForm.reset({
-        kachaId: selectedProcess.kachaId,
-        categoryId: selectedProcess.categoryId,
-        drawOperatorId: selectedProcess.drawOperatorId,
-        inputQuantity: selectedProcess.inputQuantity ? Number(selectedProcess.inputQuantity) : undefined,
-        outputQuantity: selectedProcess.outputQuantity ? Number(selectedProcess.outputQuantity) : undefined,
-        wireSize: selectedProcess.wireSize || "",
-        wastage: selectedProcess.wastage ? Number(selectedProcess.wastage) : undefined,
-        processDate: selectedProcess.processDate,
-        status: selectedProcess.status,
-        notes: selectedProcess.notes || "",
-      });
-    }
-  });
-
-  // Watch input and output quantities for edit form
-  const watchEditInputQuantity = editForm.watch("inputQuantity");
-  const watchEditOutputQuantity = editForm.watch("outputQuantity");
-
-  // Update wastage for edit form
-  useState(() => {
-    if (watchEditInputQuantity && watchEditOutputQuantity) {
-      const wastage = watchEditInputQuantity - watchEditOutputQuantity;
-      if (wastage >= 0) {
-        editForm.setValue("wastage", wastage);
-      }
-    }
-  });
-
-  const onCreateSubmit = (data: DrawProcessFormValues) => {
-    createDrawProcessMutation.mutate({
-      ...data,
-      drawOperatorId: user?.id,
-    });
-  };
-
-  const onEditSubmit = (data: DrawProcessFormValues) => {
-    if (selectedProcess) {
-      updateDrawProcessMutation.mutate({
-        id: selectedProcess.id,
-        data,
-      });
-    }
-  };
-
-  // Filter processes based on search and status
-  const filteredProcesses = drawProcesses
-    ? drawProcesses.filter((process) => {
-        const matchesSearch =
-          searchTerm === "" ||
-          process.wireSize.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          process.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesStatus = statusFilter === "" || process.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-      })
-    : [];
-
-  // Sort by process date (newest first)
-  const sortedProcesses = [...filteredProcesses].sort(
-    (a, b) => new Date(b.processDate).getTime() - new Date(a.processDate).getTime()
-  );
-
-  const columns = [
-    {
-      header: "ID",
-      accessorKey: (row: DrawProcess) => `DP-${row.id.toString().padStart(4, "0")}`,
-    },
-    {
-      header: "Kacha Process",
-      accessorKey: (row: DrawProcess) => `KP-${row.kachaId.toString().padStart(4, "0")}`,
-    },
-    {
-      header: "Category",
-      accessorKey: (row: DrawProcess) => {
-        const category = drawerCategories?.find(c => c.id === row.categoryId);
-        return category ? category.name : "N/A";
+    setRecords(newRecords);
+    setHistory((prev) => [
+      ...prev,
+      {
+        drawerUserId,
+        kachaProductId,
+        action: "add",
+        actionDate: new Date(),
+        actionQuantity: quantity,
       },
-    },
-    {
-      header: "Wire Size",
-      accessorKey: "wireSize",
-    },
-    {
-      header: "Input",
-      accessorKey: (row: DrawProcess) => `${Number(row.inputQuantity).toLocaleString()} kg`,
-    },
-    {
-      header: "Output",
-      accessorKey: (row: DrawProcess) => `${Number(row.outputQuantity).toLocaleString()} kg`,
-    },
-    {
-      header: "Date",
-      accessorKey: "processDate",
-      cell: (row: DrawProcess) => format(new Date(row.processDate), "MMM dd, yyyy"),
-    },
-    {
-      header: "Status",
-      accessorKey: "status",
-      cell: (row: DrawProcess) => <StatusBadge status={row.status} />,
-    },
-    {
-      header: "Actions",
-      accessorKey: (row: DrawProcess) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => {
-                setSelectedProcess(row);
-                setIsEditDialogOpen(true);
-              }}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ];
+    ]);
+    setModalOpen(false);
+  };
+
+  // Remove from draw logic
+  const handleRemoveFromDraw = () => {
+    setRemoveError("");
+    const drawerUserId = parseInt(removeDrawerUserId);
+    const kachaProductId = parseInt(removeKachaProductId);
+    const quantityToRemove = parseFloat(removeQuantity);
+    if (
+      !drawerUserId ||
+      !kachaProductId ||
+      !quantityToRemove ||
+      quantityToRemove <= 0
+    ) {
+      setRemoveError(
+        "Please select a Drawer User, Kacha Product, and enter a valid quantity."
+      );
+      return;
+    }
+    const idx = records.findIndex(
+      (r) =>
+        r.drawerUserId === drawerUserId && r.kachaProductId === kachaProductId
+    );
+    if (idx === -1) {
+      setRemoveError("Drawer User and Kacha Product not found.");
+      return;
+    }
+    const record = records[idx];
+    if (quantityToRemove > record.quantity) {
+      setRemoveError(
+        "Cannot remove more than available quantity for this user/product."
+      );
+      return;
+    }
+    // Subtract quantity
+    const updatedRecord = {
+      ...record,
+      quantity: record.quantity - quantityToRemove,
+      totalAmount:
+        record.totalAmount *
+        ((record.quantity - quantityToRemove) / record.quantity),
+    };
+    const updatedRecords = [...records];
+    updatedRecords[idx] = updatedRecord;
+    setRecords(updatedRecords);
+    setHistory((prev) => [
+      ...prev,
+      {
+        drawerUserId,
+        kachaProductId,
+        action: "remove",
+        actionDate: new Date(),
+        actionQuantity: quantityToRemove,
+      },
+    ]);
+    setRemoveDialogOpen(false);
+    setRemoveDrawerUserId("");
+    setRemoveKachaProductId("");
+    setRemoveQuantity("");
+    setRemoveError("");
+  };
+
+  // Per-row history modal logic
+  const openHistoryModal = (drawerUserId: number, kachaProductId: number) => {
+    setHistoryModalDrawerUserId(drawerUserId.toString());
+    setHistoryModalKachaProductId(kachaProductId.toString());
+    setHistoryModalOpen(true);
+  };
 
   return (
     <DashboardLayout>
       <div className="py-6 px-4 sm:px-6 lg:px-8">
-        {/* Workflow Stages */}
-        <WorkflowStages currentStage={3} />
-
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold font-sans">Draw Process</h1>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold font-sans">
+              Draw Processing
+            </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Manage the drawing of copper into wires of various sizes
-          </p>
+              Assign Drawer Users to process kacha products
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => setRemoveDialogOpen(true)}
+          >
+            Remove from Draw
+          </Button>
         </div>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between border-b border-gray-200 dark:border-gray-700">
-            <CardTitle className="text-lg font-sans">Draw Process Records</CardTitle>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Process
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
+        {/* Remove from Draw Dialog */}
+        <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
                 <DialogHeader>
-                  <DialogTitle>Add New Draw Process</DialogTitle>
+              <DialogTitle>Remove from Draw</DialogTitle>
                 </DialogHeader>
-                <Form {...createForm}>
-                  <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                    <FormField
-                      control={createForm.control}
-                      name="kachaId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Kacha Process</FormLabel>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1 font-medium">Drawer User</label>
                           <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
-                          >
-                            <FormControl>
+                  value={removeDrawerUserId}
+                  onValueChange={(v) => {
+                    setRemoveDrawerUserId(v);
+                    setRemoveKachaProductId("");
+                  }}
+                >
                               <SelectTrigger>
-                                <SelectValue placeholder="Select kacha process" />
+                    <SelectValue placeholder="Select Drawer User" />
                               </SelectTrigger>
-                            </FormControl>
                             <SelectContent>
-                              {isKachaProcessesLoading ? (
-                                <SelectItem value="loading" disabled>
-                                  Loading kacha processes...
+                    {Array.from(new Set(records.map((r) => r.drawerUserId))).map(
+                      (id) => (
+                        <SelectItem key={id} value={id.toString()}>
+                          {drawerUsers.find((u) => u.id === id)?.name || "N/A"}
                                 </SelectItem>
-                              ) : kachaProcesses && kachaProcesses.length > 0 ? (
-                                kachaProcesses
-                                  .filter(process => process.status === "completed")
-                                  .map((process) => (
-                                    <SelectItem key={process.id} value={process.id.toString()}>
-                                      KP-{process.id} ({process.outputQuantity} kg)
-                                    </SelectItem>
-                                  ))
-                              ) : (
-                                <SelectItem value="empty" disabled>
-                                  No completed kacha processes available
-                                </SelectItem>
+                      )
                               )}
                             </SelectContent>
                           </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="categoryId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Drawer Category</FormLabel>
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Kacha Product</label>
                           <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
-                          >
-                            <FormControl>
+                  value={removeKachaProductId}
+                  onValueChange={setRemoveKachaProductId}
+                  disabled={!removeDrawerUserId}
+                >
                               <SelectTrigger>
-                                <SelectValue placeholder="Select drawer category" />
+                    <SelectValue placeholder="Select Kacha Product" />
                               </SelectTrigger>
-                            </FormControl>
                             <SelectContent>
-                              {isDrawerCategoriesLoading ? (
-                                <SelectItem value="loading" disabled>
-                                  Loading categories...
-                                </SelectItem>
-                              ) : drawerCategories && drawerCategories.length > 0 ? (
-                                drawerCategories.map((category) => (
-                                  <SelectItem key={category.id} value={category.id.toString()}>
-                                    {category.name}
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <SelectItem value="empty" disabled>
-                                  No categories available
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="wireSize"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Wire Size</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. 2.5mm" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <FormField
-                        control={createForm.control}
-                        name="inputQuantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Input Quantity (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter input quantity"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
-                                  if (watchOutputQuantity && e.target.value) {
-                                    const wastage = parseFloat(e.target.value) - watchOutputQuantity;
-                                    if (wastage >= 0) {
-                                      createForm.setValue("wastage", wastage);
-                                    }
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="outputQuantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Output Quantity (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter output quantity"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
-                                  if (watchInputQuantity && e.target.value) {
-                                    const wastage = watchInputQuantity - parseFloat(e.target.value);
-                                    if (wastage >= 0) {
-                                      createForm.setValue("wastage", wastage);
-                                    }
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="wastage"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Wastage (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Auto-calculated"
-                                {...field}
-                                readOnly
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={createForm.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {STATUS_OPTIONS.drawProcess.map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  {status.charAt(0).toUpperCase() + status.slice(1).replace("_", " ")}
+                    {records
+                      .filter(
+                        (r) => r.drawerUserId.toString() === removeDrawerUserId
+                      )
+                      .map((r) => (
+                                  <SelectItem
+                          key={r.kachaProductId}
+                          value={r.kachaProductId.toString()}
+                        >
+                          {kachaProducts.find((i) => i.id === r.kachaProductId)
+                            ?.name || "N/A"} (Qty: {r.quantity})
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Notes (Optional)</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Enter any additional notes"
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="flex justify-end space-x-2 pt-4">
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">
+                  Quantity to Remove
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={removeQuantity}
+                  onChange={(e) => setRemoveQuantity(e.target.value)}
+                  placeholder="Enter quantity"
+                />
+              </div>
+              {removeError && (
+                <div className="text-red-600 text-xs">{removeError}</div>
+              )}
+              <div className="flex justify-end space-x-2 pt-2">
                       <Button
-                        type="button"
                         variant="outline"
-                        onClick={() => setIsAddDialogOpen(false)}
-                        disabled={createDrawProcessMutation.isPending}
+                  onClick={() => setRemoveDialogOpen(false)}
                       >
                         Cancel
                       </Button>
-                      <Button
-                        type="submit"
-                        disabled={createDrawProcessMutation.isPending}
-                      >
-                        {createDrawProcessMutation.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          "Create Process"
-                        )}
+                <Button onClick={handleRemoveFromDraw}>Remove</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+        {/* Records Table */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-sans">
+              Draw Processing
+            </CardTitle>
+            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setModalOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add
                       </Button>
-                    </div>
-                  </form>
-                </Form>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Add Draw Processing</DialogTitle>
+                </DialogHeader>
+                <DrawProcessingForm
+                  onSubmit={handleAdd}
+                  onCancel={() => setModalOpen(false)}
+                  users={drawerUsers}
+                  products={kachaProducts}
+                />
               </DialogContent>
             </Dialog>
           </CardHeader>
-          <CardContent className="p-6">
-            {/* Search and filter controls */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Input
-                  placeholder="Search wire size or notes..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {STATUS_OPTIONS.drawProcess.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1).replace("_", " ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Drawer User
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Kacha Product
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Quantity
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Total Amount
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      History
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((record) => (
+                    <tr
+                      key={record.drawerUserId + "-" + record.kachaProductId}
+                      className="border-b border-gray-200 dark:border-gray-700"
+                    >
+                      <td className="px-4 py-2">
+                        {drawerUsers.find((u) => u.id === record.drawerUserId)
+                          ?.name || "N/A"}
+                      </td>
+                      <td className="px-4 py-2">
+                        {kachaProducts.find(
+                          (i) => i.id === record.kachaProductId
+                        )?.name || "N/A"}
+                      </td>
+                      <td className="px-4 py-2">{record.quantity}</td>
+                      <td className="px-4 py-2">{record.totalAmount}</td>
+                      <td className="px-4 py-2">
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() =>
+                            openHistoryModal(
+                              record.drawerUserId,
+                              record.kachaProductId
+                            )
+                          }
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {records.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="text-center py-4 text-gray-500 dark:text-gray-400"
+                      >
+                        No records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-
-            {/* Draw processes table */}
-            <DataTable
-              columns={columns}
-              data={sortedProcesses}
-              isLoading={isDrawProcessesLoading}
-            />
           </CardContent>
         </Card>
-
-        {/* Edit draw process dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {/* Per-row History Modal */}
+        <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Edit Draw Process</DialogTitle>
+              <DialogTitle>History</DialogTitle>
             </DialogHeader>
-            {selectedProcess && (
-              <Form {...editForm}>
-                <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-                  <FormField
-                    control={editForm.control}
-                    name="kachaId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Kacha Process</FormLabel>
-                        <Select
-                          onValueChange={(value) => field.onChange(parseInt(value))}
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select kacha process" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {isKachaProcessesLoading ? (
-                              <SelectItem value="loading" disabled>
-                                Loading kacha processes...
-                              </SelectItem>
-                            ) : kachaProcesses && kachaProcesses.length > 0 ? (
-                              kachaProcesses
-                                .filter(process => process.status === "completed")
-                                .map((process) => (
-                                  <SelectItem key={process.id} value={process.id.toString()}>
-                                    KP-{process.id} ({process.outputQuantity} kg)
-                                  </SelectItem>
-                                ))
-                            ) : (
-                              <SelectItem value="empty" disabled>
-                                No completed kacha processes available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="categoryId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Drawer Category</FormLabel>
-                        <Select
-                          onValueChange={(value) => field.onChange(parseInt(value))}
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select drawer category" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {isDrawerCategoriesLoading ? (
-                              <SelectItem value="loading" disabled>
-                                Loading categories...
-                              </SelectItem>
-                            ) : drawerCategories && drawerCategories.length > 0 ? (
-                              drawerCategories.map((category) => (
-                                <SelectItem key={category.id} value={category.id.toString()}>
-                                  {category.name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="empty" disabled>
-                                No categories available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="wireSize"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Wire Size</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g. 2.5mm" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField
-                      control={editForm.control}
-                      name="inputQuantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Input Quantity (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Enter input quantity"
-                              {...field}
-                              onChange={(e) => {
-                                field.onChange(parseFloat(e.target.value));
-                                if (watchEditOutputQuantity && e.target.value) {
-                                  const wastage = parseFloat(e.target.value) - watchEditOutputQuantity;
-                                  if (wastage >= 0) {
-                                    editForm.setValue("wastage", wastage);
-                                  }
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={editForm.control}
-                      name="outputQuantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Output Quantity (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Enter output quantity"
-                              {...field}
-                              onChange={(e) => {
-                                field.onChange(parseFloat(e.target.value));
-                                if (watchEditInputQuantity && e.target.value) {
-                                  const wastage = watchEditInputQuantity - parseFloat(e.target.value);
-                                  if (wastage >= 0) {
-                                    editForm.setValue("wastage", wastage);
-                                  }
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={editForm.control}
-                      name="wastage"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Wastage (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Auto-calculated"
-                              {...field}
-                              readOnly
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Action
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Quantity
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Date/Time
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.filter(
+                    (h) =>
+                      h.drawerUserId.toString() === historyModalDrawerUserId &&
+                      h.kachaProductId.toString() === historyModalKachaProductId
+                  ).length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="text-center py-4 text-gray-500 dark:text-gray-400"
+                      >
+                        No history yet.
+                      </td>
+                    </tr>
+                  )}
+                  {history
+                                .filter(
+                      (h) =>
+                        h.drawerUserId.toString() === historyModalDrawerUserId &&
+                        h.kachaProductId.toString() === historyModalKachaProductId
+                    )
+                    .map((h, idx) => (
+                      <tr
+                        key={idx}
+                        className="border-b border-gray-200 dark:border-gray-700"
+                      >
+                        <td className="px-4 py-2">
+                          <span
+                            className={
+                              h.action === "add"
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {h.action === "add" ? "Add" : "Remove"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">{h.actionQuantity}</td>
+                        <td className="px-4 py-2">
+                          {dayjs(h.actionDate).format("YYYY-MM-DD HH:mm:ss")}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
                   </div>
-
-                  <FormField
-                    control={editForm.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {STATUS_OPTIONS.drawProcess.map((status) => (
-                              <SelectItem key={status} value={status}>
-                                {status.charAt(0).toUpperCase() + status.slice(1).replace("_", " ")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Notes (Optional)</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Enter any additional notes"
-                            {...field}
-                            value={field.value || ""}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="flex justify-end space-x-2 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsEditDialogOpen(false)}
-                      disabled={updateDrawProcessMutation.isPending}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={updateDrawProcessMutation.isPending}
-                    >
-                      {updateDrawProcessMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Updating...
-                        </>
-                      ) : (
-                        "Update Process"
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            )}
           </DialogContent>
         </Dialog>
       </div>

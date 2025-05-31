@@ -1,11 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogTrigger,
@@ -38,7 +33,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, MoreHorizontal, Pencil, Trash2, Search, Filter } from "lucide-react";
+import {
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Search,
+  Filter,
+} from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -51,30 +53,61 @@ const initialCategories = [
   { id: 5, name: "Darwer" },
 ];
 
-const initialUsers = [
-  {
-    id: 1,
-    name: "John Doe",
-    phone: "1234567890",
-    categoryId: 2,
-    isActive: true,
-  },
-];
-
-const userSchema = z.object({
-  name: z.string().min(1, "User name is required"),
-  phone: z.string().optional(),
-  categoryId: z.string().min(1, "Category is required"),
-});
+const userSchema = z
+  .object({
+    name: z.string().optional(),
+    phone: z.string().optional(),
+    categoryId: z.string().min(1, "Category is required"),
+    email: z.string().optional(),
+    password: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.categoryId === "2") {
+      // 'User' category
+      if (!data.email || data.email.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["email"],
+          message: "Email is required",
+        });
+      } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["email"],
+          message: "Invalid email address",
+        });
+      }
+      if (!data.password || data.password.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["password"],
+          message: "Password is required",
+        });
+      }
+    } else {
+      if (!data.name || data.name.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["name"],
+          message: "User name is required",
+        });
+      }
+      if (!data.phone || data.phone.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["phone"],
+          message: "Phone number is required",
+        });
+      }
+    }
+  });
 
 function UserForm({ user, categories, onSubmit, onCancel }: any) {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors, touchedFields },
     watch,
-    trigger,
     control,
   } = useForm({
     resolver: zodResolver(userSchema),
@@ -82,11 +115,12 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
       name: user?.name || "",
       phone: user?.phone || "",
       categoryId: user?.categoryId ? user.categoryId.toString() : "",
+      email: user?.email || "",
+      password: "",
     },
     mode: "onTouched",
   });
 
-  const name = watch("name");
   const categoryId = watch("categoryId");
 
   const inputStyles = {
@@ -104,39 +138,13 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
           name: data.name,
           phone: data.phone,
           categoryId: parseInt(data.categoryId),
+          email: data.email,
+          password: data.password,
           isActive: user?.isActive ?? true,
         });
       })}
       className="space-y-4"
     >
-      <div>
-        <label className="block mb-1 font-medium">User Name</label>
-        <input
-          {...register("name")}
-          placeholder="Enter user name"
-          className={
-            inputStyles.base +
-            " " +
-            (touchedFields.name
-              ? errors.name
-                ? inputStyles.invalid
-                : inputStyles.valid
-              : inputStyles.default) +
-            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
-          }
-        />
-        {touchedFields.name && errors.name && (
-          <div className="text-red-600 text-xs mt-1">{errors.name.message as string}</div>
-        )}
-      </div>
-      <div>
-        <label className="block mb-1 font-medium">Phone Number</label>
-        <input
-          {...register("phone")}
-          placeholder="Enter phone number (optional)"
-          className="w-full border px-3 py-2 rounded-md outline-none border-gray-300 dark:border-gray-700 focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
-        />
-      </div>
       <div>
         <label className="block mb-1 font-medium">Category</label>
         <Controller
@@ -167,7 +175,10 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((category: any) => (
-                    <SelectItem key={category.id} value={category.id.toString()}>
+                    <SelectItem
+                      key={category.id}
+                      value={category.id.toString()}
+                    >
                       {category.name}
                     </SelectItem>
                   ))}
@@ -182,6 +193,104 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
           )}
         />
       </div>
+      {categoryId &&
+        (categoryId === "2" ? (
+          <>
+            <div>
+              <label className="block mb-1 font-medium">Email</label>
+              <input
+                {...register("email")}
+                placeholder="Enter email"
+                className={
+                  inputStyles.base +
+                  " " +
+                  (touchedFields.email
+                    ? errors.email
+                      ? inputStyles.invalid
+                      : inputStyles.valid
+                    : inputStyles.default) +
+                  " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                }
+                type="email"
+              />
+              {touchedFields.email && errors.email && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.email.message as string}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Password</label>
+              <input
+                {...register("password")}
+                placeholder="Enter password"
+                className={
+                  inputStyles.base +
+                  " " +
+                  (touchedFields.password
+                    ? errors.password
+                      ? inputStyles.invalid
+                      : inputStyles.valid
+                    : inputStyles.default) +
+                  " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                }
+                type="password"
+              />
+              {touchedFields.password && errors.password && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.password.message as string}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="block mb-1 font-medium">User Name</label>
+              <input
+                {...register("name")}
+                placeholder="Enter user name"
+                className={
+                  inputStyles.base +
+                  " " +
+                  (touchedFields.name
+                    ? errors.name
+                      ? inputStyles.invalid
+                      : inputStyles.valid
+                    : inputStyles.default) +
+                  " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                }
+              />
+              {touchedFields.name && errors.name && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.name.message as string}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Phone Number</label>
+              <input
+                {...register("phone")}
+                placeholder="Enter phone number"
+                className={
+                  inputStyles.base +
+                  " " +
+                  (touchedFields.phone
+                    ? errors.phone
+                      ? inputStyles.invalid
+                      : inputStyles.valid
+                    : inputStyles.default) +
+                  " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                }
+              />
+              {touchedFields.phone && errors.phone && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.phone.message as string}
+                </div>
+              )}
+            </div>
+          </>
+        ))}
       <div className="flex justify-end space-x-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
@@ -193,7 +302,7 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
 }
 
 const UsersPage = () => {
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState<any[]>([]);
   const [categories] = useState(initialCategories);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -203,10 +312,7 @@ const UsersPage = () => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
   const handleAdd = (data: any) => {
-    setUsers((prev) => [
-      ...prev,
-      { ...data, id: Date.now(), isActive: true },
-    ]);
+    setUsers((prev) => [...prev, { ...data, id: Date.now(), isActive: true }]);
     setModalOpen(false);
   };
 
@@ -230,7 +336,8 @@ const UsersPage = () => {
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (user.phone && user.phone.includes(searchTerm));
     const matchesCategory =
-      categoryFilter === "all" || user.categoryId?.toString() === categoryFilter;
+      categoryFilter === "all" ||
+      user.categoryId?.toString() === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
@@ -246,25 +353,38 @@ const UsersPage = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-sans">Users</CardTitle>
-            <Dialog open={modalOpen} onOpenChange={(open) => {
-              setModalOpen(open);
-              if (!open) setEditUser(null);
-            }}>
+            <Dialog
+              open={modalOpen}
+              onOpenChange={(open) => {
+                setModalOpen(open);
+                if (!open) setEditUser(null);
+              }}
+            >
               <DialogTrigger asChild>
-                <Button onClick={() => { setEditUser(null); setModalOpen(true); }}>
+                <Button
+                  onClick={() => {
+                    setEditUser(null);
+                    setModalOpen(true);
+                  }}
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Add User
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                  <DialogTitle>{editUser ? "Edit User" : "Add User"}</DialogTitle>
+                  <DialogTitle>
+                    {editUser ? "Edit User" : "Add User"}
+                  </DialogTitle>
                 </DialogHeader>
                 <UserForm
                   user={editUser}
                   categories={categories}
                   onSubmit={editUser ? handleEdit : handleAdd}
-                  onCancel={() => { setModalOpen(false); setEditUser(null); }}
+                  onCancel={() => {
+                    setModalOpen(false);
+                    setEditUser(null);
+                  }}
                 />
               </DialogContent>
             </Dialog>
@@ -293,7 +413,10 @@ const UsersPage = () => {
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
                     {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id.toString()}>
+                      <SelectItem
+                        key={category.id}
+                        value={category.id.toString()}
+                      >
                         {category.name}
                       </SelectItem>
                     ))}
@@ -306,24 +429,43 @@ const UsersPage = () => {
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead>
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Name
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Phone
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Category
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredUsers.map((user) => (
-                    <tr key={user.id} className="border-b border-gray-200 dark:border-gray-700">
+                    <tr
+                      key={user.id}
+                      className="border-b border-gray-200 dark:border-gray-700"
+                    >
                       <td className="px-4 py-2">{user.name}</td>
                       <td className="px-4 py-2">{user.phone || "N/A"}</td>
-                      <td className="px-4 py-2">{categories.find((c) => c.id === user.categoryId)?.name || "N/A"}</td>
                       <td className="px-4 py-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.isActive
-                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                          : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-                          }`}>
+                        {categories.find((c) => c.id === user.categoryId)
+                          ?.name || "N/A"}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            user.isActive
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+                          }`}
+                        >
                           {user.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
@@ -361,7 +503,10 @@ const UsersPage = () => {
                   ))}
                   {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="text-center py-4 text-gray-500 dark:text-gray-400">
+                      <td
+                        colSpan={5}
+                        className="text-center py-4 text-gray-500 dark:text-gray-400"
+                      >
                         No users found.
                       </td>
                     </tr>
@@ -377,7 +522,8 @@ const UsersPage = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete the user "{selectedUser?.name}". This action cannot be undone.
+                This will permanently delete the user "{selectedUser?.name}".
+                This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -396,4 +542,4 @@ const UsersPage = () => {
   );
 };
 
-export default UsersPage; 
+export default UsersPage;

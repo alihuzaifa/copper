@@ -53,6 +53,7 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
     <aside 
       className={cn(
         "fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 shadow-lg z-30 transform transition-transform duration-300 ease-in-out",
+        "overflow-y-auto h-screen scrollbar-none",
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}
     >
@@ -134,6 +135,18 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
             )}>
               <Users className="mr-3 h-5 w-5" />
               Users
+            </a>
+          </Link>
+          
+          <Link href="/expense">
+            <a className={cn(
+              "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+              location === "/expense" 
+                ? "bg-primary text-white"
+                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            )}>
+              <FolderKanban className="mr-3 h-5 w-5" />
+              Expense
             </a>
           </Link>
           

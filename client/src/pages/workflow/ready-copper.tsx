@@ -1,39 +1,15 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import WorkflowStages from "@/components/layout/workflow-stages";
-import { DataTable } from "@/components/ui/data-table";
-import StatusBadge from "@/components/ui/status-badge";
-import { API_ENDPOINTS, STATUS_OPTIONS } from "@/lib/constants";
-import { ReadyCopper, DrawProcess, insertReadyCopperSchema } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
+  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -41,573 +17,618 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Plus, MoreHorizontal, Pencil, Search, Filter, Loader2 } from "lucide-react";
+import { Plus, Eye } from "lucide-react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import dayjs from "dayjs";
 
-// Form schema for creating/editing ready copper
-const readyCopperFormSchema = insertReadyCopperSchema.extend({
-  drawProcessId: z.coerce.number().min(1, "Please select a draw process"),
-  quantity: z.coerce.number().positive("Quantity must be positive"),
-  wireSize: z.string().min(1, "Please enter wire size"),
-  status: z.string().min(1, "Please select a status"),
+// Dummy data
+const dummyDrawerUsers = [
+  { id: 1, name: "Drawer User 1" },
+  { id: 2, name: "Drawer User 2" },
+  { id: 3, name: "Drawer User 3" },
+];
+const dummyProducts = [
+  { id: 1, name: "Copper Wire" },
+  { id: 2, name: "Copper Rod" },
+  { id: 3, name: "Copper Sheet" },
+];
+// Dummy assignments: which Drawer User got which Product and how much
+const dummyAssignments = [
+  { drawerUserId: 1, productId: 1, givenQuantity: 100 },
+  { drawerUserId: 1, productId: 2, givenQuantity: 50 },
+  { drawerUserId: 2, productId: 1, givenQuantity: 80 },
+  { drawerUserId: 3, productId: 3, givenQuantity: 120 },
+];
+
+const readyCopperSchema = z.object({
+  drawerUserId: z.string().min(1, "Select a Drawer User"),
+  productId: z.string().min(1, "Select a Product"),
+  quantity: z.coerce.number().positive("Enter a valid quantity"),
 });
 
-type ReadyCopperFormValues = z.infer<typeof readyCopperFormSchema>;
+function ReadyCopperForm({ onSubmit, onCancel, users, products, assignments, records }: any) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, touchedFields },
+    control,
+    watch,
+  } = useForm({
+    resolver: zodResolver(readyCopperSchema),
+    defaultValues: {
+      drawerUserId: "",
+      productId: "",
+      quantity: "",
+    },
+    mode: "onTouched",
+  });
+
+  const selectedDrawerUserId = watch("drawerUserId");
+  const selectedProductId = watch("productId");
+  const enteredQuantity = watch("quantity");
+
+  // Find the assignment for this user+product
+  const assignment = assignments.find(
+    (a: any) =>
+      a.drawerUserId.toString() === selectedDrawerUserId &&
+      a.productId.toString() === selectedProductId
+  );
+  // Find how much has already been returned for this user+product
+  const alreadyReturned = records.find(
+    (r: any) =>
+      r.drawerUserId.toString() === selectedDrawerUserId &&
+      r.productId.toString() === selectedProductId
+  )?.quantity || 0;
+  const maxReturnable = assignment ? assignment.givenQuantity - alreadyReturned : 0;
+
+  const inputStyles = {
+    base: "border px-3 py-2 rounded-md outline-none transition-colors w-full",
+    valid: "border-green-500",
+    invalid: "border-red-500",
+    default: "border-gray-300 dark:border-gray-700",
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit((data) => {
+        if (assignment && Number(data.quantity) > maxReturnable) {
+          return;
+        }
+        onSubmit({
+          drawerUserId: parseInt(data.drawerUserId),
+          productId: parseInt(data.productId),
+          quantity: Number(data.quantity),
+        });
+      })}
+      className="space-y-4"
+    >
+      <div>
+        <label className="block mb-1 font-medium">Drawer User</label>
+        <Controller
+          name="drawerUserId"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  field.onChange(v);
+                  field.onBlur();
+                }}
+              >
+                <SelectTrigger
+                  className={
+                    inputStyles.base +
+                    " " +
+                    (fieldState.invalid
+                      ? inputStyles.invalid
+                      : fieldState.isTouched && field.value
+                      ? inputStyles.valid
+                      : inputStyles.default) +
+                    " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                  }
+                >
+                  <SelectValue placeholder="Select a Drawer User" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id.toString()}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldState.invalid && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.drawerUserId?.message as string}
+                </div>
+              )}
+            </>
+          )}
+        />
+      </div>
+      <div>
+        <label className="block mb-1 font-medium">Product</label>
+        <Controller
+          name="productId"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  field.onChange(v);
+                  field.onBlur();
+                }}
+                disabled={!selectedDrawerUserId}
+              >
+                <SelectTrigger
+                  className={
+                    inputStyles.base +
+                    " " +
+                    (fieldState.invalid
+                      ? inputStyles.invalid
+                      : fieldState.isTouched && field.value
+                      ? inputStyles.valid
+                      : inputStyles.default) +
+                    " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                  }
+                >
+                  <SelectValue placeholder="Select a Product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignments
+                    .filter((a: any) => a.drawerUserId.toString() === selectedDrawerUserId)
+                    .map((a: any) => (
+                      <SelectItem key={a.productId} value={a.productId.toString()}>
+                        {products.find((p: any) => p.id === a.productId)?.name || "N/A"} (Given: {a.givenQuantity})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {fieldState.invalid && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.productId?.message as string}
+                </div>
+              )}
+            </>
+          )}
+        />
+      </div>
+      <div>
+        <label className="block mb-1 font-medium">Return Quantity</label>
+        <input
+          {...register("quantity")}
+          placeholder="Enter return quantity"
+          type="number"
+          min={0}
+          max={maxReturnable}
+          className={
+            inputStyles.base +
+            " " +
+            (errors.quantity || (assignment && Number(enteredQuantity) > maxReturnable)
+              ? inputStyles.invalid
+              : touchedFields.quantity
+              ? inputStyles.valid
+              : inputStyles.default) +
+            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+          }
+        />
+        {(errors.quantity || (assignment && Number(enteredQuantity) > maxReturnable)) && (
+          <div className="text-red-600 text-xs mt-1">
+            {errors.quantity?.message ||
+              (assignment && Number(enteredQuantity) > maxReturnable
+                ? `Cannot return more than given (${maxReturnable})`
+                : "")}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit">Add</Button>
+      </div>
+    </form>
+  );
+}
 
 const ReadyCopperPage = () => {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedCopper, setSelectedCopper] = useState<ReadyCopper | null>(null);
+  const [drawerUsers] = useState(dummyDrawerUsers);
+  const [products] = useState(dummyProducts);
+  const [assignments] = useState(dummyAssignments);
+  const [records, setRecords] = useState<any[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // Fetch ready copper records
-  const { data: readyCoppers, isLoading: isReadyCoppersLoading } = useQuery<ReadyCopper[]>({
-    queryKey: [API_ENDPOINTS.workflow.readyCopper],
-  });
+  // Remove from Ready Copper dialog state
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [removeDrawerUserId, setRemoveDrawerUserId] = useState("");
+  const [removeProductId, setRemoveProductId] = useState("");
+  const [removeQuantity, setRemoveQuantity] = useState("");
+  const [removeError, setRemoveError] = useState("");
 
-  // Fetch draw processes (to select from)
-  const { data: drawProcesses, isLoading: isDrawProcessesLoading } = useQuery<DrawProcess[]>({
-    queryKey: [API_ENDPOINTS.workflow.drawProcess],
-  });
+  // History state
+  const [history, setHistory] = useState<any[]>([]);
+  // For per-row history modal
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyModalDrawerUserId, setHistoryModalDrawerUserId] = useState("");
+  const [historyModalProductId, setHistoryModalProductId] = useState("");
 
-  // Create ready copper mutation
-  const createReadyCopperMutation = useMutation({
-    mutationFn: async (data: ReadyCopperFormValues) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.workflow.readyCopper, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.readyCopper] });
-      toast({
-        title: "Ready copper created",
-        description: "The ready copper record has been created successfully.",
-      });
-      setIsAddDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const handleAdd = (data: any) => {
+    const drawerUserId = parseInt(data.drawerUserId);
+    const productId = parseInt(data.productId);
+    const quantity = Number(data.quantity);
+    // Find assignment
+    const assignment = assignments.find(
+      (a: any) => a.drawerUserId === drawerUserId && a.productId === productId
+    );
+    if (!assignment) return;
+    // Find already returned
+    const alreadyReturned = records.find(
+      (r: any) => r.drawerUserId === drawerUserId && r.productId === productId
+    )?.quantity || 0;
+    if (quantity > assignment.givenQuantity - alreadyReturned) return;
+    // Add or update record
+    const idx = records.findIndex(
+      (r: any) => r.drawerUserId === drawerUserId && r.productId === productId
+    );
+    let newRecords;
+    if (idx !== -1) {
+      // Update existing
+      const updated = { ...records[idx] };
+      updated.quantity += quantity;
+      newRecords = [...records];
+      newRecords[idx] = updated;
+    } else {
+      // Add new
+      const newRecord = {
+        id: Date.now(),
+        drawerUserId,
+        productId,
+        quantity,
+      };
+      newRecords = [...records, newRecord];
+    }
+    setRecords(newRecords);
+    setHistory((prev) => [
+      ...prev,
+      {
+        drawerUserId,
+        productId,
+        action: "add",
+        actionDate: new Date(),
+        actionQuantity: quantity,
+      },
+    ]);
+    setModalOpen(false);
+  };
 
-  // Update ready copper mutation
-  const updateReadyCopperMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<ReadyCopperFormValues> }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `${API_ENDPOINTS.workflow.readyCopper}/${id}`,
-        data
+  // Remove from ready copper logic
+  const handleRemoveFromReadyCopper = () => {
+    setRemoveError("");
+    const drawerUserId = parseInt(removeDrawerUserId);
+    const productId = parseInt(removeProductId);
+    const quantityToRemove = parseFloat(removeQuantity);
+    if (
+      !drawerUserId ||
+      !productId ||
+      !quantityToRemove ||
+      quantityToRemove <= 0
+    ) {
+      setRemoveError(
+        "Please select a Drawer User, Product, and enter a valid quantity."
       );
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.readyCopper] });
-      toast({
-        title: "Ready copper updated",
-        description: "The ready copper record has been updated successfully.",
-      });
-      setIsEditDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Create ready copper form
-  const createForm = useForm<ReadyCopperFormValues>({
-    resolver: zodResolver(readyCopperFormSchema),
-    defaultValues: {
-      drawProcessId: undefined,
-      userId: user?.id,
-      quantity: undefined,
-      wireSize: "",
-      readyDate: new Date().toISOString(),
-      status: "in_stock",
-      notes: "",
-    },
-  });
-
-  // Edit ready copper form
-  const editForm = useForm<ReadyCopperFormValues>({
-    resolver: zodResolver(readyCopperFormSchema.partial()),
-    defaultValues: {
-      drawProcessId: selectedCopper?.drawProcessId,
-      userId: selectedCopper?.userId,
-      quantity: selectedCopper?.quantity ? Number(selectedCopper.quantity) : undefined,
-      wireSize: selectedCopper?.wireSize || "",
-      readyDate: selectedCopper?.readyDate,
-      status: selectedCopper?.status,
-      notes: selectedCopper?.notes || "",
-    },
-  });
-
-  // Update edit form when selected copper changes
-  useState(() => {
-    if (selectedCopper) {
-      editForm.reset({
-        drawProcessId: selectedCopper.drawProcessId,
-        userId: selectedCopper.userId,
-        quantity: selectedCopper.quantity ? Number(selectedCopper.quantity) : undefined,
-        wireSize: selectedCopper.wireSize || "",
-        readyDate: selectedCopper.readyDate,
-        status: selectedCopper.status,
-        notes: selectedCopper.notes || "",
-      });
+      return;
     }
-  });
-
-  const onCreateSubmit = (data: ReadyCopperFormValues) => {
-    createReadyCopperMutation.mutate({
-      ...data,
-      userId: user?.id,
-    });
+    const idx = records.findIndex(
+      (r: any) => r.drawerUserId === drawerUserId && r.productId === productId
+    );
+    if (idx === -1) {
+      setRemoveError("Drawer User and Product not found.");
+      return;
+    }
+    const record = records[idx];
+    if (quantityToRemove > record.quantity) {
+      setRemoveError(
+        "Cannot remove more than available returned quantity for this user/product."
+      );
+      return;
+    }
+    // Subtract quantity
+    const updatedRecord = {
+      ...record,
+      quantity: record.quantity - quantityToRemove,
+    };
+    const updatedRecords = [...records];
+    updatedRecords[idx] = updatedRecord;
+    setRecords(updatedRecords);
+    setHistory((prev) => [
+      ...prev,
+      {
+        drawerUserId,
+        productId,
+        action: "remove",
+        actionDate: new Date(),
+        actionQuantity: quantityToRemove,
+      },
+    ]);
+    setRemoveDialogOpen(false);
+    setRemoveDrawerUserId("");
+    setRemoveProductId("");
+    setRemoveQuantity("");
+    setRemoveError("");
   };
 
-  const onEditSubmit = (data: ReadyCopperFormValues) => {
-    if (selectedCopper) {
-      updateReadyCopperMutation.mutate({
-        id: selectedCopper.id,
-        data,
-      });
-    }
+  // Per-row history modal logic
+  const openHistoryModal = (drawerUserId: number, productId: number) => {
+    setHistoryModalDrawerUserId(drawerUserId.toString());
+    setHistoryModalProductId(productId.toString());
+    setHistoryModalOpen(true);
   };
-
-  // Filter ready coppers based on search and status
-  const filteredCoppers = readyCoppers
-    ? readyCoppers.filter((copper) => {
-        const matchesSearch =
-          searchTerm === "" ||
-          copper.wireSize.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          copper.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesStatus = statusFilter === "" || copper.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-      })
-    : [];
-
-  // Sort by ready date (newest first)
-  const sortedCoppers = [...filteredCoppers].sort(
-    (a, b) => new Date(b.readyDate).getTime() - new Date(a.readyDate).getTime()
-  );
-
-  const columns = [
-    {
-      header: "ID",
-      accessorKey: (row: ReadyCopper) => `RC-${row.id.toString().padStart(4, "0")}`,
-    },
-    {
-      header: "Draw Process",
-      accessorKey: (row: ReadyCopper) => `DP-${row.drawProcessId.toString().padStart(4, "0")}`,
-    },
-    {
-      header: "Wire Size",
-      accessorKey: "wireSize",
-    },
-    {
-      header: "Quantity",
-      accessorKey: (row: ReadyCopper) => `${Number(row.quantity).toLocaleString()} kg`,
-    },
-    {
-      header: "Date",
-      accessorKey: "readyDate",
-      cell: (row: ReadyCopper) => format(new Date(row.readyDate), "MMM dd, yyyy"),
-    },
-    {
-      header: "Status",
-      accessorKey: "status",
-      cell: (row: ReadyCopper) => <StatusBadge status={row.status} />,
-    },
-    {
-      header: "Actions",
-      accessorKey: (row: ReadyCopper) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => {
-                setSelectedCopper(row);
-                setIsEditDialogOpen(true);
-              }}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ];
 
   return (
     <DashboardLayout>
       <div className="py-6 px-4 sm:px-6 lg:px-8">
-        {/* Workflow Stages */}
-        <WorkflowStages currentStage={4} />
-
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold font-sans">Ready Copper</h1>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold font-sans">
+              Ready Copper
+            </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Manage ready copper inventory for production
-          </p>
+              Record returned copper from Drawer Users
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => setRemoveDialogOpen(true)}
+          >
+            Remove from Ready Copper
+          </Button>
         </div>
-
+        {/* Remove from Ready Copper Dialog */}
+        <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Remove from Ready Copper</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1 font-medium">Drawer User</label>
+                <Select
+                  value={removeDrawerUserId}
+                  onValueChange={(v) => {
+                    setRemoveDrawerUserId(v);
+                    setRemoveProductId("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Drawer User" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from(new Set(records.map((r) => r.drawerUserId))).map(
+                      (id) => (
+                        <SelectItem key={id} value={id.toString()}>
+                          {drawerUsers.find((u) => u.id === id)?.name || "N/A"}
+                        </SelectItem>
+                      )
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Product</label>
+                <Select
+                  value={removeProductId}
+                  onValueChange={setRemoveProductId}
+                  disabled={!removeDrawerUserId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {records
+                      .filter(
+                        (r) => r.drawerUserId.toString() === removeDrawerUserId
+                      )
+                      .map((r) => (
+                        <SelectItem
+                          key={r.productId}
+                          value={r.productId.toString()}
+                        >
+                          {products.find((i) => i.id === r.productId)?.name || "N/A"} (Returned: {r.quantity})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">
+                  Quantity to Remove
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={removeQuantity}
+                  onChange={(e) => setRemoveQuantity(e.target.value)}
+                  placeholder="Enter quantity"
+                />
+              </div>
+              {removeError && (
+                <div className="text-red-600 text-xs">{removeError}</div>
+              )}
+              <div className="flex justify-end space-x-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setRemoveDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleRemoveFromReadyCopper}>Remove</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+        {/* Records Table */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between border-b border-gray-200 dark:border-gray-700">
-            <CardTitle className="text-lg font-sans">Ready Copper Records</CardTitle>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-sans">
+              Ready Copper
+            </CardTitle>
+            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button onClick={() => setModalOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Ready Copper
+                  Add
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
+              <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                  <DialogTitle>Add New Ready Copper</DialogTitle>
+                  <DialogTitle>Add Ready Copper</DialogTitle>
                 </DialogHeader>
-                <Form {...createForm}>
-                  <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                    <FormField
-                      control={createForm.control}
-                      name="drawProcessId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Draw Process</FormLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select draw process" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {isDrawProcessesLoading ? (
-                                <SelectItem value="loading" disabled>
-                                  Loading draw processes...
-                                </SelectItem>
-                              ) : drawProcesses && drawProcesses.length > 0 ? (
-                                drawProcesses
-                                  .filter(process => process.status === "completed")
-                                  .map((process) => (
-                                    <SelectItem key={process.id} value={process.id.toString()}>
-                                      DP-{process.id} ({process.wireSize}, {process.outputQuantity} kg)
-                                    </SelectItem>
-                                  ))
-                              ) : (
-                                <SelectItem value="empty" disabled>
-                                  No completed draw processes available
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="wireSize"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Wire Size</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter wire size (e.g. 1.5mm)" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="quantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Quantity (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Enter quantity"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {STATUS_OPTIONS.readyCopper.map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Notes</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="Add any notes or comments" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="flex justify-end">
-                      <Button type="button" variant="outline" className="mr-2" onClick={() => setIsAddDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        disabled={createReadyCopperMutation.isPending}
-                      >
-                        {createReadyCopperMutation.isPending && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        Save
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
+                <ReadyCopperForm
+                  onSubmit={handleAdd}
+                  onCancel={() => setModalOpen(false)}
+                  users={drawerUsers}
+                  products={products}
+                  assignments={assignments}
+                  records={records}
+                />
               </DialogContent>
             </Dialog>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 flex flex-col sm:flex-row justify-between gap-4">
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search ready copper..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="w-full sm:w-48">
-                <Select
-                  value={statusFilter}
-                  onValueChange={setStatusFilter}
-                >
-                  <SelectTrigger>
-                    <div className="flex items-center">
-                      <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Filter by status" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {STATUS_OPTIONS.readyCopper.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Drawer User
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Product
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Returned Quantity
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      History
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((record) => (
+                    <tr
+                      key={record.drawerUserId + "-" + record.productId}
+                      className="border-b border-gray-200 dark:border-gray-700"
+                    >
+                      <td className="px-4 py-2">
+                        {drawerUsers.find((u) => u.id === record.drawerUserId)
+                          ?.name || "N/A"}
+                      </td>
+                      <td className="px-4 py-2">
+                        {products.find((i) => i.id === record.productId)?.name || "N/A"}
+                      </td>
+                      <td className="px-4 py-2">{record.quantity}</td>
+                      <td className="px-4 py-2">
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() =>
+                            openHistoryModal(
+                              record.drawerUserId,
+                              record.productId
+                            )
+                          }
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {records.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="text-center py-4 text-gray-500 dark:text-gray-400"
+                      >
+                        No records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-
-            <DataTable
-              columns={columns}
-              data={sortedCoppers}
-              isLoading={isReadyCoppersLoading}
-            />
           </CardContent>
         </Card>
-
-        {/* Edit Ready Copper Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {/* Per-row History Modal */}
+        <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Edit Ready Copper</DialogTitle>
+              <DialogTitle>History</DialogTitle>
             </DialogHeader>
-            <Form {...editForm}>
-              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-                <FormField
-                  control={editForm.control}
-                  name="drawProcessId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Draw Process</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Action
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Quantity
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Date/Time
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.filter(
+                    (h) =>
+                      h.drawerUserId.toString() === historyModalDrawerUserId &&
+                      h.productId.toString() === historyModalProductId
+                  ).length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="text-center py-4 text-gray-500 dark:text-gray-400"
                       >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select draw process" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {isDrawProcessesLoading ? (
-                            <SelectItem value="loading" disabled>
-                              Loading draw processes...
-                            </SelectItem>
-                          ) : drawProcesses && drawProcesses.length > 0 ? (
-                            drawProcesses
-                              .filter(process => process.status === "completed")
-                              .map((process) => (
-                                <SelectItem key={process.id} value={process.id.toString()}>
-                                  DP-{process.id} ({process.wireSize}, {process.outputQuantity} kg)
-                                </SelectItem>
-                              ))
-                          ) : (
-                            <SelectItem value="empty" disabled>
-                              No completed draw processes available
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
+                        No history yet.
+                      </td>
+                    </tr>
                   )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="wireSize"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Wire Size</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter wire size (e.g. 1.5mm)" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="quantity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Quantity (kg)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="Enter quantity"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
+                  {history
+                    .filter(
+                      (h) =>
+                        h.drawerUserId.toString() === historyModalDrawerUserId &&
+                        h.productId.toString() === historyModalProductId
+                    )
+                    .map((h, idx) => (
+                      <tr
+                        key={idx}
+                        className="border-b border-gray-200 dark:border-gray-700"
                       >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {STATUS_OPTIONS.readyCopper.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Add any notes or comments" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end">
-                  <Button type="button" variant="outline" className="mr-2" onClick={() => setIsEditDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={updateReadyCopperMutation.isPending}
-                  >
-                    {updateReadyCopperMutation.isPending && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    Update
-                  </Button>
+                        <td className="px-4 py-2">
+                          <span
+                            className={
+                              h.action === "add"
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {h.action === "add" ? "Add" : "Remove"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">{h.actionQuantity}</td>
+                        <td className="px-4 py-2">
+                          {dayjs(h.actionDate).format("YYYY-MM-DD HH:mm:ss")}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
                 </div>
-              </form>
-            </Form>
           </DialogContent>
         </Dialog>
       </div>

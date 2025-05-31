@@ -1,39 +1,15 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import WorkflowStages from "@/components/layout/workflow-stages";
-import { DataTable } from "@/components/ui/data-table";
-import StatusBadge from "@/components/ui/status-badge";
-import { API_ENDPOINTS, STATUS_OPTIONS, UNIT_OPTIONS } from "@/lib/constants";
-import { KachaProcessing, RawMaterialPurchase, KachaUserCategory, insertKachaProcessingSchema } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
+  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -41,818 +17,613 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Plus, MoreHorizontal, Pencil, Search, Filter, Loader2 } from "lucide-react";
+import { Plus, Eye } from "lucide-react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import dayjs from "dayjs";
 
-// Form schema for creating/editing kacha processing
-const kachaProcessingFormSchema = insertKachaProcessingSchema.extend({
-  purchaseId: z.coerce.number().min(1, "Please select a raw material"),
-  categoryId: z.coerce.number().min(1, "Please select a processor category"),
-  inputQuantity: z.coerce.number().positive("Input quantity must be positive"),
-  outputQuantity: z.coerce.number().positive("Output quantity must be positive"),
-  wastage: z.coerce.number().optional(),
-  status: z.string().min(1, "Please select a status"),
+// Dummy data
+const dummyKachaUsers = [
+  { id: 1, name: "Kacha User 1" },
+  { id: 2, name: "Kacha User 2" },
+  { id: 3, name: "Kacha User 3" },
+];
+const dummyPurchaseItems = [
+  { id: 1, name: "Copper Scrap" },
+  { id: 2, name: "Copper Wire" },
+  { id: 3, name: "Copper Sheet" },
+];
+
+const kachaProcessingSchema = z.object({
+  kachaUserId: z.string().min(1, "Select a Kacha User"),
+  purchaseItemId: z.string().min(1, "Select a Purchase Item"),
+  quantity: z.coerce.number().positive("Enter a valid quantity"),
+  totalAmount: z.coerce.number().positive("Enter a valid total amount"),
 });
 
-type KachaProcessingFormValues = z.infer<typeof kachaProcessingFormSchema>;
+function KachaProcessingForm({ onSubmit, onCancel, users, items }: any) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, touchedFields },
+    watch,
+    control,
+  } = useForm({
+    resolver: zodResolver(kachaProcessingSchema),
+    defaultValues: {
+      kachaUserId: "",
+      purchaseItemId: "",
+      quantity: "",
+      totalAmount: "",
+    },
+    mode: "onTouched",
+  });
+
+  const inputStyles = {
+    base: "border px-3 py-2 rounded-md outline-none transition-colors w-full",
+    valid: "border-green-500",
+    invalid: "border-red-500",
+    default: "border-gray-300 dark:border-gray-700",
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit((data) => {
+        onSubmit({
+          kachaUserId: parseInt(data.kachaUserId),
+          purchaseItemId: parseInt(data.purchaseItemId),
+          quantity: Number(data.quantity),
+          totalAmount: Number(data.totalAmount),
+        });
+      })}
+      className="space-y-4"
+    >
+      <div>
+        <label className="block mb-1 font-medium">Kacha User</label>
+        <Controller
+          name="kachaUserId"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  field.onChange(v);
+                  field.onBlur();
+                }}
+              >
+                <SelectTrigger
+                  className={
+                    inputStyles.base +
+                    " " +
+                    (fieldState.invalid
+                      ? inputStyles.invalid
+                      : fieldState.isTouched && field.value
+                      ? inputStyles.valid
+                      : inputStyles.default) +
+                    " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                  }
+                >
+                  <SelectValue placeholder="Select a Kacha User" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id.toString()}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldState.invalid && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.kachaUserId?.message as string}
+                </div>
+              )}
+            </>
+          )}
+        />
+      </div>
+      <div>
+        <label className="block mb-1 font-medium">Purchase Item</label>
+        <Controller
+          name="purchaseItemId"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  field.onChange(v);
+                  field.onBlur();
+                }}
+              >
+                <SelectTrigger
+                  className={
+                    inputStyles.base +
+                    " " +
+                    (fieldState.invalid
+                      ? inputStyles.invalid
+                      : fieldState.isTouched && field.value
+                      ? inputStyles.valid
+                      : inputStyles.default) +
+                    " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+                  }
+                >
+                  <SelectValue placeholder="Select a Purchase Item" />
+                </SelectTrigger>
+                <SelectContent>
+                  {items.map((item: any) => (
+                    <SelectItem key={item.id} value={item.id.toString()}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldState.invalid && (
+                <div className="text-red-600 text-xs mt-1">
+                  {errors.purchaseItemId?.message as string}
+                </div>
+              )}
+            </>
+          )}
+        />
+      </div>
+      <div>
+        <label className="block mb-1 font-medium">Quantity</label>
+        <input
+          {...register("quantity")}
+          placeholder="Enter quantity"
+          type="number"
+          className={
+            inputStyles.base +
+            " " +
+            (errors.quantity
+              ? inputStyles.invalid
+              : touchedFields.quantity
+              ? inputStyles.valid
+              : inputStyles.default) +
+            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+          }
+        />
+        {errors.quantity && (
+          <div className="text-red-600 text-xs mt-1">
+            {errors.quantity.message as string}
+          </div>
+        )}
+      </div>
+      <div>
+        <label className="block mb-1 font-medium">Total Amount</label>
+        <input
+          {...register("totalAmount")}
+          placeholder="Enter total amount"
+          type="number"
+          className={
+            inputStyles.base +
+            " " +
+            (errors.totalAmount
+              ? inputStyles.invalid
+              : touchedFields.totalAmount
+              ? inputStyles.valid
+              : inputStyles.default) +
+            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+          }
+        />
+        {errors.totalAmount && (
+          <div className="text-red-600 text-xs mt-1">
+            {errors.totalAmount.message as string}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit">Add</Button>
+      </div>
+    </form>
+  );
+}
 
 const KachaProcessingPage = () => {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedProcess, setSelectedProcess] = useState<KachaProcessing | null>(null);
+  const [kachaUsers] = useState(dummyKachaUsers);
+  const [purchaseItems] = useState(dummyPurchaseItems);
+  const [records, setRecords] = useState<any[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // Fetch kacha processing records
-  const { data: kachaProcesses, isLoading: isKachaProcessesLoading } = useQuery<KachaProcessing[]>({
-    queryKey: [API_ENDPOINTS.workflow.kachaProcessing],
-  });
+  // Remove from Processing dialog state
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [removeKachaUserId, setRemoveKachaUserId] = useState("");
+  const [removePurchaseItemId, setRemovePurchaseItemId] = useState("");
+  const [removeQuantity, setRemoveQuantity] = useState("");
+  const [removeError, setRemoveError] = useState("");
 
-  // Fetch raw material purchases (to select from)
-  const { data: rawMaterials, isLoading: isRawMaterialsLoading } = useQuery<RawMaterialPurchase[]>({
-    queryKey: [API_ENDPOINTS.workflow.rawMaterialPurchases],
-  });
+  // History state
+  const [history, setHistory] = useState<any[]>([]);
+  // For per-row history modal
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyModalKachaUserId, setHistoryModalKachaUserId] = useState("");
+  const [historyModalPurchaseItemId, setHistoryModalPurchaseItemId] =
+    useState("");
 
-  // Fetch kacha user categories
-  const { data: kachaCategories, isLoading: isKachaUserCategoriesLoading } = useQuery<KachaUserCategory[]>({
-    queryKey: [API_ENDPOINTS.categories.kachaUserCategories],
-  });
+  const handleAdd = (data: any) => {
+    // Check if record exists for this user+item
+    const kachaUserId = parseInt(data.kachaUserId);
+    const purchaseItemId = parseInt(data.purchaseItemId);
+    const quantity = Number(data.quantity);
+    const totalAmount = Number(data.totalAmount);
+    const idx = records.findIndex(
+      (r) =>
+        r.kachaUserId === kachaUserId && r.purchaseItemId === purchaseItemId
+    );
+    let newRecords;
+    if (idx !== -1) {
+      // Update existing
+      const updated = { ...records[idx] };
+      updated.quantity += quantity;
+      updated.totalAmount += totalAmount;
+      newRecords = [...records];
+      newRecords[idx] = updated;
+    } else {
+      // Add new
+      const newRecord = {
+        id: Date.now(),
+        kachaUserId,
+        purchaseItemId,
+        quantity,
+        totalAmount,
+      };
+      newRecords = [...records, newRecord];
+    }
+    setRecords(newRecords);
+    setHistory((prev) => [
+      ...prev,
+      {
+        kachaUserId,
+        purchaseItemId,
+        action: "add",
+        actionDate: new Date(),
+        actionQuantity: quantity,
+      },
+    ]);
+    setModalOpen(false);
+  };
 
-  // Create kacha processing mutation
-  const createKachaProcessingMutation = useMutation({
-    mutationFn: async (data: KachaProcessingFormValues) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.workflow.kachaProcessing, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.kachaProcessing] });
-      toast({
-        title: "Kacha processing created",
-        description: "The kacha processing record has been created successfully.",
-      });
-      setIsAddDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Update kacha processing mutation
-  const updateKachaProcessingMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<KachaProcessingFormValues> }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `${API_ENDPOINTS.workflow.kachaProcessing}/${id}`,
-        data
+  // Remove from processing logic
+  const handleRemoveFromProcessing = () => {
+    setRemoveError("");
+    const kachaUserId = parseInt(removeKachaUserId);
+    const purchaseItemId = parseInt(removePurchaseItemId);
+    const quantityToRemove = parseFloat(removeQuantity);
+    if (
+      !kachaUserId ||
+      !purchaseItemId ||
+      !quantityToRemove ||
+      quantityToRemove <= 0
+    ) {
+      setRemoveError(
+        "Please select a Kacha User, Purchase Item, and enter a valid quantity."
       );
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.kachaProcessing] });
-      toast({
-        title: "Kacha processing updated",
-        description: "The kacha processing record has been updated successfully.",
-      });
-      setIsEditDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Create kacha processing form
-  const createForm = useForm<KachaProcessingFormValues>({
-    resolver: zodResolver(kachaProcessingFormSchema),
-    defaultValues: {
-      purchaseId: undefined,
-      processorId: user?.id,
-      categoryId: undefined,
-      inputQuantity: undefined,
-      outputQuantity: undefined,
-      wastage: undefined,
-      processDate: new Date().toISOString(),
-      status: "in_progress",
-      notes: "",
-    },
-  });
-
-  // Watch input and output quantities to auto-calculate wastage
-  const watchInputQuantity = createForm.watch("inputQuantity");
-  const watchOutputQuantity = createForm.watch("outputQuantity");
-
-  // Update wastage when input or output quantity changes
-  useState(() => {
-    if (watchInputQuantity && watchOutputQuantity) {
-      const wastage = watchInputQuantity - watchOutputQuantity;
-      if (wastage >= 0) {
-        createForm.setValue("wastage", wastage);
-      }
+      return;
     }
-  });
-
-  // Edit kacha processing form
-  const editForm = useForm<KachaProcessingFormValues>({
-    resolver: zodResolver(kachaProcessingFormSchema.partial()),
-    defaultValues: {
-      purchaseId: selectedProcess?.purchaseId,
-      processorId: selectedProcess?.processorId,
-      categoryId: selectedProcess?.categoryId,
-      inputQuantity: selectedProcess?.inputQuantity ? Number(selectedProcess.inputQuantity) : undefined,
-      outputQuantity: selectedProcess?.outputQuantity ? Number(selectedProcess.outputQuantity) : undefined,
-      wastage: selectedProcess?.wastage ? Number(selectedProcess.wastage) : undefined,
-      processDate: selectedProcess?.processDate,
-      status: selectedProcess?.status,
-      notes: selectedProcess?.notes || "",
-    },
-  });
-
-  // Update edit form when selected process changes
-  useState(() => {
-    if (selectedProcess) {
-      editForm.reset({
-        purchaseId: selectedProcess.purchaseId,
-        processorId: selectedProcess.processorId,
-        categoryId: selectedProcess.categoryId,
-        inputQuantity: selectedProcess.inputQuantity ? Number(selectedProcess.inputQuantity) : undefined,
-        outputQuantity: selectedProcess.outputQuantity ? Number(selectedProcess.outputQuantity) : undefined,
-        wastage: selectedProcess.wastage ? Number(selectedProcess.wastage) : undefined,
-        processDate: selectedProcess.processDate,
-        status: selectedProcess.status,
-        notes: selectedProcess.notes || "",
-      });
+    const idx = records.findIndex(
+      (r) =>
+        r.kachaUserId === kachaUserId && r.purchaseItemId === purchaseItemId
+    );
+    if (idx === -1) {
+      setRemoveError("Kacha User and Purchase Item not found.");
+      return;
     }
-  });
-
-  // Watch input and output quantities for edit form
-  const watchEditInputQuantity = editForm.watch("inputQuantity");
-  const watchEditOutputQuantity = editForm.watch("outputQuantity");
-
-  // Update wastage for edit form
-  useState(() => {
-    if (watchEditInputQuantity && watchEditOutputQuantity) {
-      const wastage = watchEditInputQuantity - watchEditOutputQuantity;
-      if (wastage >= 0) {
-        editForm.setValue("wastage", wastage);
-      }
+    const record = records[idx];
+    if (quantityToRemove > record.quantity) {
+      setRemoveError(
+        "Cannot remove more than available quantity for this user/item."
+      );
+      return;
     }
-  });
-
-  const onCreateSubmit = (data: KachaProcessingFormValues) => {
-    createKachaProcessingMutation.mutate({
-      ...data,
-      processorId: user?.id,
-    });
+    // Subtract quantity
+    const updatedRecord = {
+      ...record,
+      quantity: record.quantity - quantityToRemove,
+      totalAmount:
+        record.totalAmount *
+        ((record.quantity - quantityToRemove) / record.quantity),
+    };
+    const updatedRecords = [...records];
+    updatedRecords[idx] = updatedRecord;
+    setRecords(updatedRecords);
+    setHistory((prev) => [
+      ...prev,
+      {
+        kachaUserId,
+        purchaseItemId,
+        action: "remove",
+        actionDate: new Date(),
+        actionQuantity: quantityToRemove,
+      },
+    ]);
+    setRemoveDialogOpen(false);
+    setRemoveKachaUserId("");
+    setRemovePurchaseItemId("");
+    setRemoveQuantity("");
+    setRemoveError("");
   };
 
-  const onEditSubmit = (data: KachaProcessingFormValues) => {
-    if (selectedProcess) {
-      updateKachaProcessingMutation.mutate({
-        id: selectedProcess.id,
-        data,
-      });
-    }
+  // Per-row history modal logic
+  const openHistoryModal = (kachaUserId: number, purchaseItemId: number) => {
+    setHistoryModalKachaUserId(kachaUserId.toString());
+    setHistoryModalPurchaseItemId(purchaseItemId.toString());
+    setHistoryModalOpen(true);
   };
-
-  // Filter processes based on search and status
-  const filteredProcesses = kachaProcesses
-    ? kachaProcesses.filter((process) => {
-        const matchesSearch =
-          searchTerm === "" ||
-          process.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesStatus = statusFilter === "" || process.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-      })
-    : [];
-
-  // Sort by process date (newest first)
-  const sortedProcesses = [...filteredProcesses].sort(
-    (a, b) => new Date(b.processDate).getTime() - new Date(a.processDate).getTime()
-  );
-
-  const columns = [
-    {
-      header: "ID",
-      accessorKey: (row: KachaProcessing) => `KP-${row.id.toString().padStart(4, "0")}`,
-    },
-    {
-      header: "Raw Material",
-      accessorKey: (row: KachaProcessing) => {
-        const purchase = rawMaterials?.find(p => p.id === row.purchaseId);
-        return purchase ? purchase.materialName : "N/A";
-      },
-    },
-    {
-      header: "Category",
-      accessorKey: (row: KachaProcessing) => {
-        const category = kachaCategories?.find(c => c.id === row.categoryId);
-        return category ? category.name : "N/A";
-      },
-    },
-    {
-      header: "Input",
-      accessorKey: (row: KachaProcessing) => `${Number(row.inputQuantity).toLocaleString()} kg`,
-    },
-    {
-      header: "Output",
-      accessorKey: (row: KachaProcessing) => `${Number(row.outputQuantity).toLocaleString()} kg`,
-    },
-    {
-      header: "Wastage",
-      accessorKey: (row: KachaProcessing) => 
-        row.wastage ? `${Number(row.wastage).toLocaleString()} kg` : "N/A",
-    },
-    {
-      header: "Date",
-      accessorKey: "processDate",
-      cell: (row: KachaProcessing) => format(new Date(row.processDate), "MMM dd, yyyy"),
-    },
-    {
-      header: "Status",
-      accessorKey: "status",
-      cell: (row: KachaProcessing) => <StatusBadge status={row.status} />,
-    },
-    {
-      header: "Actions",
-      accessorKey: (row: KachaProcessing) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => {
-                setSelectedProcess(row);
-                setIsEditDialogOpen(true);
-              }}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ];
 
   return (
     <DashboardLayout>
       <div className="py-6 px-4 sm:px-6 lg:px-8">
-        {/* Workflow Stages */}
-        <WorkflowStages currentStage={2} />
-
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold font-sans">Kacha Copper Processing</h1>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+          <h1 className="text-2xl font-semibold font-sans">
+              Kacha Processing
+          </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Manage the initial processing of raw copper materials
-          </p>
+              Assign Kacha Users to process purchase items
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => setRemoveDialogOpen(true)}
+          >
+            Remove from Processing
+          </Button>
         </div>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between border-b border-gray-200 dark:border-gray-700">
-            <CardTitle className="text-lg font-sans">Kacha Processing Records</CardTitle>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Process
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
+        {/* Remove from Processing Dialog */}
+        <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
                 <DialogHeader>
-                  <DialogTitle>Add New Kacha Processing</DialogTitle>
+              <DialogTitle>Remove from Processing</DialogTitle>
                 </DialogHeader>
-                <Form {...createForm}>
-                  <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                    <FormField
-                      control={createForm.control}
-                      name="purchaseId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Raw Material</FormLabel>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1 font-medium">Kacha User</label>
                           <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
-                          >
-                            <FormControl>
+                  value={removeKachaUserId}
+                  onValueChange={(v) => {
+                    setRemoveKachaUserId(v);
+                    setRemovePurchaseItemId("");
+                  }}
+                >
                               <SelectTrigger>
-                                <SelectValue placeholder="Select raw material" />
+                    <SelectValue placeholder="Select Kacha User" />
                               </SelectTrigger>
-                            </FormControl>
                             <SelectContent>
-                              {isRawMaterialsLoading ? (
-                                <SelectItem value="loading" disabled>
-                                  Loading raw materials...
+                    {Array.from(new Set(records.map((r) => r.kachaUserId))).map(
+                      (id) => (
+                        <SelectItem key={id} value={id.toString()}>
+                          {kachaUsers.find((u) => u.id === id)?.name || "N/A"}
                                 </SelectItem>
-                              ) : rawMaterials && rawMaterials.length > 0 ? (
-                                rawMaterials
-                                  .filter(material => material.status === "received")
-                                  .map((material) => (
-                                    <SelectItem key={material.id} value={material.id.toString()}>
-                                      {material.materialName} ({material.quantity} {material.unit})
-                                    </SelectItem>
-                                  ))
-                              ) : (
-                                <SelectItem value="empty" disabled>
-                                  No raw materials available
-                                </SelectItem>
+                      )
                               )}
                             </SelectContent>
                           </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="categoryId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Processor Category</FormLabel>
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Purchase Item</label>
                           <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
-                          >
-                            <FormControl>
+                  value={removePurchaseItemId}
+                  onValueChange={setRemovePurchaseItemId}
+                  disabled={!removeKachaUserId}
+                >
                               <SelectTrigger>
-                                <SelectValue placeholder="Select processor category" />
+                    <SelectValue placeholder="Select Purchase Item" />
                               </SelectTrigger>
-                            </FormControl>
                             <SelectContent>
-                              {isKachaUserCategoriesLoading ? (
-                                <SelectItem value="loading" disabled>
-                                  Loading categories...
-                                </SelectItem>
-                              ) : kachaCategories && kachaCategories.length > 0 ? (
-                                kachaCategories.map((category) => (
-                                  <SelectItem key={category.id} value={category.id.toString()}>
-                                    {category.name}
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <SelectItem value="empty" disabled>
-                                  No categories available
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <FormField
-                        control={createForm.control}
-                        name="inputQuantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Input Quantity (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter input quantity"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
-                                  if (watchOutputQuantity && e.target.value) {
-                                    const wastage = parseFloat(e.target.value) - watchOutputQuantity;
-                                    if (wastage >= 0) {
-                                      createForm.setValue("wastage", wastage);
-                                    }
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="outputQuantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Output Quantity (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter output quantity"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
-                                  if (watchInputQuantity && e.target.value) {
-                                    const wastage = watchInputQuantity - parseFloat(e.target.value);
-                                    if (wastage >= 0) {
-                                      createForm.setValue("wastage", wastage);
-                                    }
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="wastage"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Wastage (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Auto-calculated"
-                                {...field}
-                                readOnly
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={createForm.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {STATUS_OPTIONS.kachaProcessing.map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  {status.charAt(0).toUpperCase() + status.slice(1).replace("_", " ")}
+                    {records
+                      .filter(
+                        (r) => r.kachaUserId.toString() === removeKachaUserId
+                      )
+                      .map((r) => (
+                                  <SelectItem
+                          key={r.purchaseItemId}
+                          value={r.purchaseItemId.toString()}
+                        >
+                          {purchaseItems.find((i) => i.id === r.purchaseItemId)
+                            ?.name || "N/A"}{" "}
+                          (Qty: {r.quantity})
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Notes (Optional)</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Enter any additional notes"
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="flex justify-end space-x-2 pt-4">
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">
+                  Quantity to Remove
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={removeQuantity}
+                  onChange={(e) => setRemoveQuantity(e.target.value)}
+                  placeholder="Enter quantity"
+                />
+              </div>
+              {removeError && (
+                <div className="text-red-600 text-xs">{removeError}</div>
+              )}
+              <div className="flex justify-end space-x-2 pt-2">
                       <Button
-                        type="button"
                         variant="outline"
-                        onClick={() => setIsAddDialogOpen(false)}
-                        disabled={createKachaProcessingMutation.isPending}
+                  onClick={() => setRemoveDialogOpen(false)}
                       >
                         Cancel
                       </Button>
-                      <Button
-                        type="submit"
-                        disabled={createKachaProcessingMutation.isPending}
-                      >
-                        {createKachaProcessingMutation.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          "Create Process"
-                        )}
+                <Button onClick={handleRemoveFromProcessing}>Remove</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+        {/* Records Table */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-sans">
+              Kacha Processing
+            </CardTitle>
+            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setModalOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add
                       </Button>
-                    </div>
-                  </form>
-                </Form>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Add Kacha Processing</DialogTitle>
+                </DialogHeader>
+                <KachaProcessingForm
+                  onSubmit={handleAdd}
+                  onCancel={() => setModalOpen(false)}
+                  users={kachaUsers}
+                  items={purchaseItems}
+                />
               </DialogContent>
             </Dialog>
           </CardHeader>
-          <CardContent className="p-6">
-            {/* Search and filter controls */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Input
-                  placeholder="Search notes..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {STATUS_OPTIONS.kachaProcessing.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1).replace("_", " ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Kacha User
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Purchase Item
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Quantity
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Total Amount
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      History
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((record) => (
+                    <tr
+                      key={record.kachaUserId + "-" + record.purchaseItemId}
+                      className="border-b border-gray-200 dark:border-gray-700"
+                    >
+                      <td className="px-4 py-2">
+                        {kachaUsers.find((u) => u.id === record.kachaUserId)
+                          ?.name || "N/A"}
+                      </td>
+                      <td className="px-4 py-2">
+                        {purchaseItems.find(
+                          (i) => i.id === record.purchaseItemId
+                        )?.name || "N/A"}
+                      </td>
+                      <td className="px-4 py-2">{record.quantity}</td>
+                      <td className="px-4 py-2">{record.totalAmount}</td>
+                      <td className="px-4 py-2">
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() =>
+                            openHistoryModal(
+                              record.kachaUserId,
+                              record.purchaseItemId
+                            )
+                          }
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {records.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="text-center py-4 text-gray-500 dark:text-gray-400"
+                      >
+                        No records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-
-            {/* Kacha processes table */}
-            <DataTable
-              columns={columns}
-              data={sortedProcesses}
-              isLoading={isKachaProcessesLoading}
-            />
           </CardContent>
         </Card>
-
-        {/* Edit kacha processing dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {/* Per-row History Modal */}
+        <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Edit Kacha Processing</DialogTitle>
+              <DialogTitle>History</DialogTitle>
             </DialogHeader>
-            {selectedProcess && (
-              <Form {...editForm}>
-                <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-                  <FormField
-                    control={editForm.control}
-                    name="purchaseId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Raw Material</FormLabel>
-                        <Select
-                          onValueChange={(value) => field.onChange(parseInt(value))}
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select raw material" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {isRawMaterialsLoading ? (
-                              <SelectItem value="loading" disabled>
-                                Loading raw materials...
-                              </SelectItem>
-                            ) : rawMaterials && rawMaterials.length > 0 ? (
-                              rawMaterials
-                                .filter(material => material.status === "received")
-                                .map((material) => (
-                                  <SelectItem key={material.id} value={material.id.toString()}>
-                                    {material.materialName} ({material.quantity} {material.unit})
-                                  </SelectItem>
-                                ))
-                            ) : (
-                              <SelectItem value="empty" disabled>
-                                No raw materials available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="categoryId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Processor Category</FormLabel>
-                        <Select
-                          onValueChange={(value) => field.onChange(parseInt(value))}
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select processor category" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {isKachaUserCategoriesLoading ? (
-                              <SelectItem value="loading" disabled>
-                                Loading categories...
-                              </SelectItem>
-                            ) : kachaCategories && kachaCategories.length > 0 ? (
-                              kachaCategories.map((category) => (
-                                <SelectItem key={category.id} value={category.id.toString()}>
-                                  {category.name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="empty" disabled>
-                                No categories available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField
-                      control={editForm.control}
-                      name="inputQuantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Input Quantity (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Enter input quantity"
-                              {...field}
-                              onChange={(e) => {
-                                field.onChange(parseFloat(e.target.value));
-                                if (watchEditOutputQuantity && e.target.value) {
-                                  const wastage = parseFloat(e.target.value) - watchEditOutputQuantity;
-                                  if (wastage >= 0) {
-                                    editForm.setValue("wastage", wastage);
-                                  }
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={editForm.control}
-                      name="outputQuantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Output Quantity (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Enter output quantity"
-                              {...field}
-                              onChange={(e) => {
-                                field.onChange(parseFloat(e.target.value));
-                                if (watchEditInputQuantity && e.target.value) {
-                                  const wastage = watchEditInputQuantity - parseFloat(e.target.value);
-                                  if (wastage >= 0) {
-                                    editForm.setValue("wastage", wastage);
-                                  }
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={editForm.control}
-                      name="wastage"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Wastage (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Auto-calculated"
-                              {...field}
-                              readOnly
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Action
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Quantity
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Date/Time
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.filter(
+                    (h) =>
+                      h.kachaUserId.toString() === historyModalKachaUserId &&
+                      h.purchaseItemId.toString() === historyModalPurchaseItemId
+                  ).length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="text-center py-4 text-gray-500 dark:text-gray-400"
+                      >
+                        No history yet.
+                      </td>
+                    </tr>
+                  )}
+                  {history
+                                .filter(
+                      (h) =>
+                        h.kachaUserId.toString() === historyModalKachaUserId &&
+                        h.purchaseItemId.toString() ===
+                          historyModalPurchaseItemId
+                    )
+                    .map((h, idx) => (
+                      <tr
+                        key={idx}
+                        className="border-b border-gray-200 dark:border-gray-700"
+                      >
+                        <td className="px-4 py-2">
+                          <span
+                            className={
+                              h.action === "add"
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {h.action === "add" ? "Add" : "Remove"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">{h.actionQuantity}</td>
+                        <td className="px-4 py-2">
+                          {dayjs(h.actionDate).format("YYYY-MM-DD HH:mm:ss")}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
                   </div>
-
-                  <FormField
-                    control={editForm.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {STATUS_OPTIONS.kachaProcessing.map((status) => (
-                              <SelectItem key={status} value={status}>
-                                {status.charAt(0).toUpperCase() + status.slice(1).replace("_", " ")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Notes (Optional)</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Enter any additional notes"
-                            {...field}
-                            value={field.value || ""}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="flex justify-end space-x-2 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsEditDialogOpen(false)}
-                      disabled={updateKachaProcessingMutation.isPending}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={updateKachaProcessingMutation.isPending}
-                    >
-                      {updateKachaProcessingMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Updating...
-                        </>
-                      ) : (
-                        "Update Process"
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            )}
           </DialogContent>
         </Dialog>
       </div>

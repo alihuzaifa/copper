@@ -1,39 +1,15 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import WorkflowStages from "@/components/layout/workflow-stages";
-import { DataTable } from "@/components/ui/data-table";
-import StatusBadge from "@/components/ui/status-badge";
-import { API_ENDPOINTS, STATUS_OPTIONS } from "@/lib/constants";
-import { Production, ReadyCopper, PvcPurchase, insertProductionSchema } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
+  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -41,927 +17,532 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Plus, MoreHorizontal, Pencil, Search, Filter, Loader2 } from "lucide-react";
+import { Plus, Eye, Trash2 } from "lucide-react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import dayjs from "dayjs";
 
-// Form schema for creating/editing production
-const productionFormSchema = insertProductionSchema.extend({
-  readyCopperId: z.coerce.number().min(1, "Please select a ready copper"),
-  pvcPurchaseId: z.coerce.number().min(1, "Please select a PVC purchase"),
-  inputQuantity: z.coerce.number().positive("Input quantity must be positive"),
-  outputQuantity: z.coerce.number().positive("Output quantity must be positive"),
-  wireSize: z.string().min(1, "Please enter wire size"),
-  pvcColor: z.string().min(1, "Please enter PVC color"),
-  status: z.string().min(1, "Please select a status"),
+// Dummy data for dropdowns
+const dummyReadyCopper = [
+  { id: 1, wireSize: "1.5mm", quantity: 100 },
+  { id: 2, wireSize: "2.5mm", quantity: 80 },
+  { id: 3, wireSize: "4mm", quantity: 60 },
+];
+const dummyPVC = [
+  { id: 1, pvcColor: "Red", quantity: 50 },
+  { id: 2, pvcColor: "Blue", quantity: 40 },
+  { id: 3, pvcColor: "Green", quantity: 30 },
+];
+
+// Zod schemas
+const readyCopperInputSchema = z.object({
+  readyCopperId: z.string().min(1, "Select Ready Copper"),
+  quantity: z.coerce.number().positive("Enter a valid quantity"),
+});
+const pvcInputSchema = z.object({
+  pvcId: z.string().min(1, "Select PVC"),
+  quantity: z.coerce.number().positive("Enter a valid quantity"),
+});
+const outputSchema = z.object({
+  materialName: z.string().min(1, "Enter output material name"),
+  quantity: z.coerce.number().positive("Enter output quantity"),
+  mazdoori: z.coerce.number().positive("Enter Mazdoori"),
 });
 
-type ProductionFormValues = z.infer<typeof productionFormSchema>;
+interface ReadyCopperInput {
+  readyCopperId: number;
+  wireSize: string;
+  quantity: number;
+}
+interface PVCInput {
+  pvcId: number;
+  pvcColor: string;
+  quantity: number;
+}
+interface Output {
+  materialName: string;
+  quantity: number;
+  mazdoori: number;
+}
+interface ProductionRecord {
+  id: number;
+  readyCopperInputs: ReadyCopperInput[];
+  pvcInputs: PVCInput[];
+  output: Output;
+  date: string;
+}
+interface ProductionHistory {
+  productionId: number;
+  action: "add" | "delete";
+  actionDate: string;
+  details: any;
+}
 
 const ProductionPage = () => {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedProduction, setSelectedProduction] = useState<Production | null>(null);
+  // State for input lists
+  const [readyCopperInputs, setReadyCopperInputs] = useState<ReadyCopperInput[]>([]);
+  const [pvcInputs, setPVCInputs] = useState<PVCInput[]>([]);
+  const [productions, setProductions] = useState<ProductionRecord[]>([]);
+  const [history, setHistory] = useState<ProductionHistory[]>([]);
+  // Dialogs
+  const [outputDialogOpen, setOutputDialogOpen] = useState(false);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [historyDialogId, setHistoryDialogId] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  // Fetch production records
-  const { data: productions, isLoading: isProductionsLoading } = useQuery<Production[]>({
-    queryKey: [API_ENDPOINTS.workflow.production],
+  // Ready Copper form
+  const {
+    control: rcControl,
+    handleSubmit: handleRCSubmit,
+    reset: resetRC,
+    formState: { errors: rcErrors },
+  } = useForm({
+    resolver: zodResolver(readyCopperInputSchema),
+    defaultValues: { readyCopperId: "", quantity: "" },
+  });
+  // PVC form
+  const {
+    control: pvcControl,
+    handleSubmit: handlePVCSubmit,
+    reset: resetPVC,
+    formState: { errors: pvcErrors },
+  } = useForm({
+    resolver: zodResolver(pvcInputSchema),
+    defaultValues: { pvcId: "", quantity: "" },
+  });
+  // Output form
+  const {
+    control: outputControl,
+    handleSubmit: handleOutputSubmit,
+    reset: resetOutput,
+    formState: { errors: outputErrors },
+  } = useForm({
+    resolver: zodResolver(outputSchema),
+    defaultValues: { materialName: "", quantity: "", mazdoori: "" },
   });
 
-  // Fetch ready copper (to select from)
-  const { data: readyCoppers, isLoading: isReadyCoppersLoading } = useQuery<ReadyCopper[]>({
-    queryKey: [API_ENDPOINTS.workflow.readyCopper],
-  });
-
-  // Fetch PVC purchases (to select from)
-  const { data: pvcPurchases, isLoading: isPvcPurchasesLoading } = useQuery<PvcPurchase[]>({
-    queryKey: [API_ENDPOINTS.workflow.pvcPurchases],
-  });
-
-  // Create production mutation
-  const createProductionMutation = useMutation({
-    mutationFn: async (data: ProductionFormValues) => {
-      const res = await apiRequest("POST", API_ENDPOINTS.workflow.production, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.production] });
-      toast({
-        title: "Production created",
-        description: "The production record has been created successfully.",
-      });
-      setIsAddDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Update production mutation
-  const updateProductionMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<ProductionFormValues> }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `${API_ENDPOINTS.workflow.production}/${id}`,
-        data
-      );
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.workflow.production] });
-      toast({
-        title: "Production updated",
-        description: "The production record has been updated successfully.",
-      });
-      setIsEditDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Create production form
-  const createForm = useForm<ProductionFormValues>({
-    resolver: zodResolver(productionFormSchema),
-    defaultValues: {
-      readyCopperId: undefined,
-      pvcPurchaseId: undefined,
-      operatorId: user?.id,
-      wireSize: "",
-      pvcColor: "",
-      inputQuantity: undefined,
-      outputQuantity: undefined,
-      wastage: undefined,
-      meterPerKg: undefined,
-      productionDate: new Date().toISOString(),
-      status: "in_progress",
-      notes: "",
-    },
-  });
-
-  // Watch input and output quantities to auto-calculate wastage
-  const watchInputQuantity = createForm.watch("inputQuantity");
-  const watchOutputQuantity = createForm.watch("outputQuantity");
-  
-  // Auto-populate wire size and PVC color based on selected ready copper and PVC purchase
-  const watchReadyCopperId = createForm.watch("readyCopperId");
-  const watchPvcPurchaseId = createForm.watch("pvcPurchaseId");
-
-  // Update wastage when input or output quantity changes
-  useState(() => {
-    if (watchInputQuantity && watchOutputQuantity) {
-      const wastage = watchInputQuantity - watchOutputQuantity;
-      if (wastage >= 0) {
-        createForm.setValue("wastage", wastage);
-      }
-    }
-  });
-
-  // Update wire size when ready copper changes
-  useState(() => {
-    if (watchReadyCopperId && readyCoppers) {
-      const selectedCopper = readyCoppers.find(c => c.id === watchReadyCopperId);
-      if (selectedCopper) {
-        createForm.setValue("wireSize", selectedCopper.wireSize);
-      }
-    }
-  });
-
-  // Update PVC color when PVC purchase changes
-  useState(() => {
-    if (watchPvcPurchaseId && pvcPurchases) {
-      const selectedPvc = pvcPurchases.find(p => p.id === watchPvcPurchaseId);
-      if (selectedPvc) {
-        createForm.setValue("pvcColor", selectedPvc.pvcColor);
-      }
-    }
-  });
-
-  // Edit production form
-  const editForm = useForm<ProductionFormValues>({
-    resolver: zodResolver(productionFormSchema.partial()),
-    defaultValues: {
-      readyCopperId: selectedProduction?.readyCopperId,
-      pvcPurchaseId: selectedProduction?.pvcPurchaseId,
-      operatorId: selectedProduction?.operatorId,
-      wireSize: selectedProduction?.wireSize || "",
-      pvcColor: selectedProduction?.pvcColor || "",
-      inputQuantity: selectedProduction?.inputQuantity ? Number(selectedProduction.inputQuantity) : undefined,
-      outputQuantity: selectedProduction?.outputQuantity ? Number(selectedProduction.outputQuantity) : undefined,
-      wastage: selectedProduction?.wastage ? Number(selectedProduction.wastage) : undefined,
-      meterPerKg: selectedProduction?.meterPerKg ? Number(selectedProduction.meterPerKg) : undefined,
-      productionDate: selectedProduction?.productionDate,
-      status: selectedProduction?.status,
-      notes: selectedProduction?.notes || "",
-    },
-  });
-
-  // Update edit form when selected production changes
-  useState(() => {
-    if (selectedProduction) {
-      editForm.reset({
-        readyCopperId: selectedProduction.readyCopperId,
-        pvcPurchaseId: selectedProduction.pvcPurchaseId,
-        operatorId: selectedProduction.operatorId,
-        wireSize: selectedProduction.wireSize || "",
-        pvcColor: selectedProduction.pvcColor || "",
-        inputQuantity: selectedProduction.inputQuantity ? Number(selectedProduction.inputQuantity) : undefined,
-        outputQuantity: selectedProduction.outputQuantity ? Number(selectedProduction.outputQuantity) : undefined,
-        wastage: selectedProduction.wastage ? Number(selectedProduction.wastage) : undefined,
-        meterPerKg: selectedProduction.meterPerKg ? Number(selectedProduction.meterPerKg) : undefined,
-        productionDate: selectedProduction.productionDate,
-        status: selectedProduction.status,
-        notes: selectedProduction.notes || "",
-      });
-    }
-  });
-
-  // Watch input and output quantities for edit form
-  const watchEditInputQuantity = editForm.watch("inputQuantity");
-  const watchEditOutputQuantity = editForm.watch("outputQuantity");
-
-  // Update wastage for edit form
-  useState(() => {
-    if (watchEditInputQuantity && watchEditOutputQuantity) {
-      const wastage = watchEditInputQuantity - watchEditOutputQuantity;
-      if (wastage >= 0) {
-        editForm.setValue("wastage", wastage);
-      }
-    }
-  });
-
-  const onCreateSubmit = (data: ProductionFormValues) => {
-    createProductionMutation.mutate({
-      ...data,
-      operatorId: user?.id,
-    });
+  // Add Ready Copper input
+  const onAddRC = (data: any) => {
+    const rc = dummyReadyCopper.find((r) => r.id === parseInt(data.readyCopperId));
+    if (!rc) return;
+    setReadyCopperInputs((prev) => [
+      ...prev,
+      {
+        readyCopperId: rc.id,
+        wireSize: rc.wireSize,
+        quantity: Number(data.quantity),
+      },
+    ]);
+    resetRC();
+  };
+  // Remove RC input
+  const onRemoveRC = (idx: number) => {
+    setReadyCopperInputs((prev) => prev.filter((_, i) => i !== idx));
+  };
+  // Add PVC input
+  const onAddPVC = (data: any) => {
+    const pvc = dummyPVC.find((p) => p.id === parseInt(data.pvcId));
+    if (!pvc) return;
+    setPVCInputs((prev) => [
+      ...prev,
+      {
+        pvcId: pvc.id,
+        pvcColor: pvc.pvcColor,
+        quantity: Number(data.quantity),
+      },
+    ]);
+    resetPVC();
+  };
+  // Remove PVC input
+  const onRemovePVC = (idx: number) => {
+    setPVCInputs((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const onEditSubmit = (data: ProductionFormValues) => {
-    if (selectedProduction) {
-      updateProductionMutation.mutate({
-        id: selectedProduction.id,
-        data,
-      });
-    }
+  // Finalize production
+  const onFinalize = (data: any) => {
+    if (readyCopperInputs.length === 0 && pvcInputs.length === 0) return;
+    const newId = Date.now();
+    const record: ProductionRecord = {
+      id: newId,
+      readyCopperInputs: [...readyCopperInputs],
+      pvcInputs: [...pvcInputs],
+      output: {
+        materialName: data.materialName,
+        quantity: Number(data.quantity),
+        mazdoori: Number(data.mazdoori),
+      },
+      date: new Date().toISOString(),
+    };
+    setProductions((prev) => [record, ...prev]);
+    setHistory((prev) => [
+      ...prev,
+      {
+        productionId: newId,
+        action: "add",
+        actionDate: new Date().toISOString(),
+        details: record,
+      },
+    ]);
+    setReadyCopperInputs([]);
+    setPVCInputs([]);
+    resetOutput();
+    setOutputDialogOpen(false);
   };
 
-  // Filter productions based on search and status
-  const filteredProductions = productions
-    ? productions.filter((production) => {
-        const matchesSearch =
-          searchTerm === "" ||
-          production.wireSize.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          production.pvcColor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          production.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+  // Delete production
+  const onDelete = () => {
+    if (deleteId == null) return;
+    const deleted = productions.find((p) => p.id === deleteId);
+    setProductions((prev) => prev.filter((p) => p.id !== deleteId));
+    setHistory((prev) => [
+      ...prev,
+      {
+        productionId: deleteId,
+        action: "delete",
+        actionDate: new Date().toISOString(),
+        details: deleted,
+      },
+    ]);
+    setDeleteDialogOpen(false);
+    setDeleteId(null);
+  };
 
-        const matchesStatus = statusFilter === "" || production.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-      })
-    : [];
-
-  // Sort by production date (newest first)
-  const sortedProductions = [...filteredProductions].sort(
-    (a, b) => new Date(b.productionDate).getTime() - new Date(a.productionDate).getTime()
-  );
-
-  const columns = [
-    {
-      header: "ID",
-      accessorKey: (row: Production) => `PRD-${row.id.toString().padStart(4, "0")}`,
-    },
-    {
-      header: "Wire",
-      accessorKey: (row: Production) => `${row.wireSize} (${row.pvcColor})`,
-    },
-    {
-      header: "Input",
-      accessorKey: (row: Production) => `${Number(row.inputQuantity).toLocaleString()} kg`,
-    },
-    {
-      header: "Output",
-      accessorKey: (row: Production) => `${Number(row.outputQuantity).toLocaleString()} kg`,
-    },
-    {
-      header: "Meters/Kg",
-      accessorKey: (row: Production) => row.meterPerKg ? `${row.meterPerKg} m/kg` : "N/A",
-    },
-    {
-      header: "Date",
-      accessorKey: "productionDate",
-      cell: (row: Production) => format(new Date(row.productionDate), "MMM dd, yyyy"),
-    },
-    {
-      header: "Status",
-      accessorKey: "status",
-      cell: (row: Production) => <StatusBadge status={row.status} />,
-    },
-    {
-      header: "Actions",
-      accessorKey: (row: Production) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => {
-                setSelectedProduction(row);
-                setIsEditDialogOpen(true);
-              }}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ];
+  // Per-row history
+  const openHistory = (id: number) => {
+    setHistoryDialogId(id);
+    setHistoryDialogOpen(true);
+  };
 
   return (
     <DashboardLayout>
       <div className="py-6 px-4 sm:px-6 lg:px-8">
-        {/* Workflow Stages */}
-        <WorkflowStages currentStage={6} />
-
         <div className="mb-6">
           <h1 className="text-2xl font-semibold font-sans">Production</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
             Manage the final production of insulated copper wires
           </p>
         </div>
-
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between border-b border-gray-200 dark:border-gray-700">
-            <CardTitle className="text-lg font-sans">Production Records</CardTitle>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Production
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Add New Production</DialogTitle>
-                </DialogHeader>
-                <Form {...createForm}>
-                  <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                    <FormField
-                      control={createForm.control}
-                      name="readyCopperId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Ready Copper</FormLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select ready copper" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {isReadyCoppersLoading ? (
-                                <SelectItem value="loading" disabled>
-                                  Loading ready copper...
-                                </SelectItem>
-                              ) : readyCoppers && readyCoppers.length > 0 ? (
-                                readyCoppers
-                                  .filter(copper => copper.status === "in_stock")
-                                  .map((copper) => (
-                                    <SelectItem key={copper.id} value={copper.id.toString()}>
-                                      {copper.wireSize} - {copper.quantity} kg
-                                    </SelectItem>
-                                  ))
-                              ) : (
-                                <SelectItem value="empty" disabled>
-                                  No ready copper available
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="pvcPurchaseId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>PVC Material</FormLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select PVC material" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {isPvcPurchasesLoading ? (
-                                <SelectItem value="loading" disabled>
-                                  Loading PVC materials...
-                                </SelectItem>
-                              ) : pvcPurchases && pvcPurchases.length > 0 ? (
-                                pvcPurchases
-                                  .filter(pvc => pvc.status === "received")
-                                  .map((pvc) => (
-                                    <SelectItem key={pvc.id} value={pvc.id.toString()}>
-                                      {pvc.pvcColor} - {pvc.quantity} {pvc.unit}
-                                    </SelectItem>
-                                  ))
-                              ) : (
-                                <SelectItem value="empty" disabled>
-                                  No PVC materials available
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={createForm.control}
-                        name="wireSize"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Wire Size</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Wire size" {...field} readOnly className="bg-gray-50 dark:bg-gray-800" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="pvcColor"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>PVC Color</FormLabel>
-                            <FormControl>
-                              <Input placeholder="PVC color" {...field} readOnly className="bg-gray-50 dark:bg-gray-800" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={createForm.control}
-                        name="inputQuantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Input Quantity (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter input quantity"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
-                                  if (watchOutputQuantity && e.target.value) {
-                                    const wastage = parseFloat(e.target.value) - watchOutputQuantity;
-                                    if (wastage >= 0) {
-                                      createForm.setValue("wastage", wastage);
-                                    }
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="outputQuantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Output Quantity (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter output quantity"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
-                                  if (watchInputQuantity && e.target.value) {
-                                    const wastage = watchInputQuantity - parseFloat(e.target.value);
-                                    if (wastage >= 0) {
-                                      createForm.setValue("wastage", wastage);
-                                    }
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={createForm.control}
-                        name="wastage"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Wastage (kg)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Wastage"
-                                {...field}
-                                readOnly
-                                className="bg-gray-50 dark:bg-gray-800"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="meterPerKg"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Meters per Kg</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter meters per kg"
-                                {...field}
-                                onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={createForm.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {STATUS_OPTIONS.map((status) => (
-                                <SelectItem key={status.value} value={status.value}>
-                                  {status.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Notes</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="Add any notes or comments" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="flex justify-end">
-                      <Button type="button" variant="outline" className="mr-2" onClick={() => setIsAddDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        disabled={createProductionMutation.isPending}
-                      >
-                        {createProductionMutation.isPending && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        Save
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+          <CardHeader>
+            <CardTitle className="text-lg font-sans">Add Inputs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 flex flex-col sm:flex-row justify-between gap-4">
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search productions..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+            {/* Ready Copper Input */}
+            <div className="mb-4">
+              <h2 className="font-semibold mb-2">Ready Copper</h2>
+              <form
+                onSubmit={handleRCSubmit(onAddRC)}
+                className="flex gap-2 items-end"
+              >
+                <Controller
+                  name="readyCopperId"
+                  control={rcControl}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Select Ready Copper" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dummyReadyCopper.map((rc) => (
+                          <SelectItem key={rc.id} value={rc.id.toString()}>
+                            {rc.wireSize} (Available: {rc.quantity})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 />
-              </div>
-              <div className="w-full sm:w-48">
-                <Select
-                  value={statusFilter}
-                  onValueChange={setStatusFilter}
-                >
-                  <SelectTrigger>
-                    <div className="flex items-center">
-                      <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Filter by status" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status.value} value={status.value}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <Controller
+                  name="quantity"
+                  control={rcControl}
+                  render={({ field }) => (
+                    <Input
+                      type="number"
+                      placeholder="Quantity"
+                      {...field}
+                      className="w-32"
+                    />
+                  )}
+                />
+                <Button type="submit">Add</Button>
+              </form>
+              {rcErrors.readyCopperId && (
+                <div className="text-red-600 text-xs mt-1">{rcErrors.readyCopperId.message as string}</div>
+              )}
+              {rcErrors.quantity && (
+                <div className="text-red-600 text-xs mt-1">{rcErrors.quantity.message as string}</div>
+              )}
+              <ul className="mt-2">
+                {readyCopperInputs.map((rc, idx) => (
+                  <li key={idx} className="flex items-center gap-2">
+                    <span>
+                      {rc.wireSize} - {rc.quantity} kg
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onRemoveRC(idx)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
             </div>
-
-            <DataTable
-              columns={columns}
-              data={sortedProductions}
-              isLoading={isProductionsLoading}
-            />
+            {/* PVC Input */}
+            <div className="mb-4">
+              <h2 className="font-semibold mb-2">PVC</h2>
+              <form
+                onSubmit={handlePVCSubmit(onAddPVC)}
+                className="flex gap-2 items-end"
+              >
+                <Controller
+                  name="pvcId"
+                  control={pvcControl}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Select PVC" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dummyPVC.map((pvc) => (
+                          <SelectItem key={pvc.id} value={pvc.id.toString()}>
+                            {pvc.pvcColor} (Available: {pvc.quantity})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <Controller
+                  name="quantity"
+                  control={pvcControl}
+                  render={({ field }) => (
+                    <Input
+                      type="number"
+                      placeholder="Quantity"
+                      {...field}
+                      className="w-32"
+                    />
+                  )}
+                />
+                <Button type="submit">Add</Button>
+              </form>
+              {pvcErrors.pvcId && (
+                <div className="text-red-600 text-xs mt-1">{pvcErrors.pvcId.message as string}</div>
+              )}
+              {pvcErrors.quantity && (
+                <div className="text-red-600 text-xs mt-1">{pvcErrors.quantity.message as string}</div>
+              )}
+              <ul className="mt-2">
+                {pvcInputs.map((pvc, idx) => (
+                  <li key={idx} className="flex items-center gap-2">
+                    <span>
+                      {pvc.pvcColor} - {pvc.quantity} kg
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onRemovePVC(idx)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Finalize Section */}
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setOutputDialogOpen(true)}
+                disabled={readyCopperInputs.length === 0 && pvcInputs.length === 0}
+              >
+                Finalize Production
+              </Button>
+            </div>
           </CardContent>
         </Card>
-
-        {/* Edit Production Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {/* Output Dialog */}
+        <Dialog open={outputDialogOpen} onOpenChange={setOutputDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Output Details</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleOutputSubmit(onFinalize)} className="space-y-4">
+              <Controller
+                name="materialName"
+                control={outputControl}
+                render={({ field }) => (
+                  <Input placeholder="Output Material Name" {...field} />
+                )}
+              />
+              {outputErrors.materialName && (
+                <div className="text-red-600 text-xs">{outputErrors.materialName.message as string}</div>
+              )}
+              <Controller
+                name="quantity"
+                control={outputControl}
+                render={({ field }) => (
+                  <Input type="number" placeholder="Output Quantity" {...field} />
+                )}
+              />
+              {outputErrors.quantity && (
+                <div className="text-red-600 text-xs">{outputErrors.quantity.message as string}</div>
+              )}
+              <Controller
+                name="mazdoori"
+                control={outputControl}
+                render={({ field }) => (
+                  <Input type="number" placeholder="Mazdoori (PKR)" {...field} />
+                )}
+              />
+              {outputErrors.mazdoori && (
+                <div className="text-red-600 text-xs">{outputErrors.mazdoori.message as string}</div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setOutputDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Add Production</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+        {/* Productions Table */}
+        <Card className="mt-8">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-sans">Production Records</CardTitle>
+            <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} disabled={productions.length === 0}>
+              Delete Production
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Inputs</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Output</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Mazdoori</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">History</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Delete</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productions.map((prod) => (
+                    <tr key={prod.id} className="border-b border-gray-200 dark:border-gray-700">
+                      <td className="px-4 py-2">PRD-{prod.id.toString().slice(-4)}</td>
+                      <td className="px-4 py-2">
+                        <div>
+                          <b>Ready Copper:</b>
+                          <ul>
+                            {prod.readyCopperInputs.map((rc, idx) => (
+                              <li key={idx}>{rc.wireSize} - {rc.quantity} kg</li>
+                            ))}
+                          </ul>
+                          <b>PVC:</b>
+                          <ul>
+                            {prod.pvcInputs.map((pvc, idx) => (
+                              <li key={idx}>{pvc.pvcColor} - {pvc.quantity} kg</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        {prod.output.materialName} - {prod.output.quantity} kg
+                      </td>
+                      <td className="px-4 py-2">{prod.output.mazdoori} PKR</td>
+                      <td className="px-4 py-2">{dayjs(prod.date).format("YYYY-MM-DD HH:mm")}</td>
+                      <td className="px-4 py-2">
+                        <Button variant="ghost" className="h-8 w-8 p-0" onClick={() => openHistory(prod.id)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
+                      <td className="px-4 py-2">
+                        <Button variant="ghost" className="h-8 w-8 p-0" onClick={() => { setDeleteId(prod.id); setDeleteDialogOpen(true); }}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {productions.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center py-4 text-gray-500 dark:text-gray-400">
+                        No production records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+        {/* Delete Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Delete Production</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>Are you sure you want to delete this production record?</div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={onDelete}>
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+        {/* History Dialog */}
+        <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Edit Production</DialogTitle>
+              <DialogTitle>History</DialogTitle>
             </DialogHeader>
-            <Form {...editForm}>
-              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-                <FormField
-                  control={editForm.control}
-                  name="readyCopperId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Ready Copper</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select ready copper" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {isReadyCoppersLoading ? (
-                            <SelectItem value="loading" disabled>
-                              Loading ready copper...
-                            </SelectItem>
-                          ) : readyCoppers && readyCoppers.length > 0 ? (
-                            readyCoppers
-                              .filter(copper => copper.status === "in_stock" || copper.id === field.value)
-                              .map((copper) => (
-                                <SelectItem key={copper.id} value={copper.id.toString()}>
-                                  {copper.wireSize} - {copper.quantity} kg
-                                </SelectItem>
-                              ))
-                          ) : (
-                            <SelectItem value="empty" disabled>
-                              No ready copper available
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date/Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.filter((h) => h.productionId === historyDialogId).length === 0 && (
+                    <tr>
+                      <td colSpan={2} className="text-center py-4 text-gray-500 dark:text-gray-400">
+                        No history yet.
+                      </td>
+                    </tr>
                   )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="pvcPurchaseId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>PVC Material</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select PVC material" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {isPvcPurchasesLoading ? (
-                            <SelectItem value="loading" disabled>
-                              Loading PVC materials...
-                            </SelectItem>
-                          ) : pvcPurchases && pvcPurchases.length > 0 ? (
-                            pvcPurchases
-                              .filter(pvc => pvc.status === "received" || pvc.id === field.value)
-                              .map((pvc) => (
-                                <SelectItem key={pvc.id} value={pvc.id.toString()}>
-                                  {pvc.pvcColor} - {pvc.quantity} {pvc.unit}
-                                </SelectItem>
-                              ))
-                          ) : (
-                            <SelectItem value="empty" disabled>
-                              No PVC materials available
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={editForm.control}
-                    name="wireSize"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Wire Size</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter wire size" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="pvcColor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>PVC Color</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter PVC color" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={editForm.control}
-                    name="inputQuantity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Input Quantity (kg)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Enter input quantity"
-                            {...field}
-                            onChange={(e) => {
-                              field.onChange(parseFloat(e.target.value));
-                              if (watchEditOutputQuantity && e.target.value) {
-                                const wastage = parseFloat(e.target.value) - watchEditOutputQuantity;
-                                if (wastage >= 0) {
-                                  editForm.setValue("wastage", wastage);
-                                }
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="outputQuantity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Output Quantity (kg)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Enter output quantity"
-                            {...field}
-                            onChange={(e) => {
-                              field.onChange(parseFloat(e.target.value));
-                              if (watchEditInputQuantity && e.target.value) {
-                                const wastage = watchEditInputQuantity - parseFloat(e.target.value);
-                                if (wastage >= 0) {
-                                  editForm.setValue("wastage", wastage);
-                                }
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={editForm.control}
-                    name="wastage"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Wastage (kg)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Wastage"
-                            {...field}
-                            readOnly
-                            className="bg-gray-50 dark:bg-gray-800"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="meterPerKg"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Meters per Kg</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Enter meters per kg"
-                            {...field}
-                            onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={editForm.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status.value} value={status.value}>
-                              {status.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Add any notes or comments" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end">
-                  <Button type="button" variant="outline" className="mr-2" onClick={() => setIsEditDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={updateProductionMutation.isPending}
-                  >
-                    {updateProductionMutation.isPending && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    Update
-                  </Button>
-                </div>
-              </form>
-            </Form>
+                  {history
+                    .filter((h) => h.productionId === historyDialogId)
+                    .map((h, idx) => (
+                      <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
+                        <td className="px-4 py-2">
+                          <span className={h.action === "add" ? "text-green-600" : "text-red-600"}>
+                            {h.action === "add" ? "Add" : "Delete"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">{dayjs(h.actionDate).format("YYYY-MM-DD HH:mm:ss")}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
