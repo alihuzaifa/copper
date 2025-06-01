@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Transaction } from "@shared/schema";
 import { API_ENDPOINTS, DEFAULT_PAGE_SIZE } from "@/lib/constants";
 import { DataTable } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
@@ -14,6 +13,16 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+
+// Transaction interface (since shared schema is removed)
+interface Transaction {
+  id: string | number;
+  transactionType: string;
+  description: string;
+  quantity?: number;
+  amount?: number;
+  transactionDate: string;
+}
 
 const TransactionsTable = () => {
   const [page, setPage] = useState(1);
@@ -37,26 +46,26 @@ const TransactionsTable = () => {
     },
     {
       header: "Type",
-      accessorKey: "transactionType",
+      accessorKey: "transactionType" as keyof Transaction,
       cell: (row: Transaction) => <StatusBadge status={row.transactionType} />,
     },
     {
       header: "Description",
-      accessorKey: "description",
+      accessorKey: "description" as keyof Transaction,
     },
     {
       header: "Quantity",
-      accessorKey: "quantity",
+      accessorKey: "quantity" as keyof Transaction,
       cell: (row: Transaction) => row.quantity ? Number(row.quantity).toLocaleString() : "N/A",
     },
     {
       header: "Amount",
-      accessorKey: "amount",
+      accessorKey: "amount" as keyof Transaction,
       cell: (row: Transaction) => row.amount ? `₹${Number(row.amount).toLocaleString('en-IN')}` : "N/A",
     },
     {
       header: "Date",
-      accessorKey: "transactionDate",
+      accessorKey: "transactionDate" as keyof Transaction,
       cell: (row: Transaction) => format(new Date(row.transactionDate), "MMM dd, yyyy"),
     },
     {

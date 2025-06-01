@@ -1,10 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ShoppingCart, Check, UserPlus, AlertTriangle } from "lucide-react";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { Transaction } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Transaction interface (since shared schema is removed)
+interface Transaction {
+  id: string | number;
+  transactionType: string;
+  description: string;
+  amount?: number;
+  transactionDate: string;
+}
 
 // Map transaction types to icons
 const transactionIcons: Record<string, React.ReactNode> = {

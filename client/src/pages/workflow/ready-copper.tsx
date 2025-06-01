@@ -48,7 +48,14 @@ const readyCopperSchema = z.object({
   quantity: z.coerce.number().positive("Enter a valid quantity"),
 });
 
-function ReadyCopperForm({ onSubmit, onCancel, users, products, assignments, records }: any) {
+function ReadyCopperForm({
+  onSubmit,
+  onCancel,
+  users,
+  products,
+  assignments,
+  records,
+}: any) {
   const {
     register,
     handleSubmit,
@@ -76,12 +83,15 @@ function ReadyCopperForm({ onSubmit, onCancel, users, products, assignments, rec
       a.productId.toString() === selectedProductId
   );
   // Find how much has already been returned for this user+product
-  const alreadyReturned = records.find(
-    (r: any) =>
-      r.drawerUserId.toString() === selectedDrawerUserId &&
-      r.productId.toString() === selectedProductId
-  )?.quantity || 0;
-  const maxReturnable = assignment ? assignment.givenQuantity - alreadyReturned : 0;
+  const alreadyReturned =
+    records.find(
+      (r: any) =>
+        r.drawerUserId.toString() === selectedDrawerUserId &&
+        r.productId.toString() === selectedProductId
+    )?.quantity || 0;
+  const maxReturnable = assignment
+    ? assignment.givenQuantity - alreadyReturned
+    : 0;
 
   const inputStyles = {
     base: "border px-3 py-2 rounded-md outline-none transition-colors w-full",
@@ -180,10 +190,18 @@ function ReadyCopperForm({ onSubmit, onCancel, users, products, assignments, rec
                 </SelectTrigger>
                 <SelectContent>
                   {assignments
-                    .filter((a: any) => a.drawerUserId.toString() === selectedDrawerUserId)
+                    .filter(
+                      (a: any) =>
+                        a.drawerUserId.toString() === selectedDrawerUserId
+                    )
                     .map((a: any) => (
-                      <SelectItem key={a.productId} value={a.productId.toString()}>
-                        {products.find((p: any) => p.id === a.productId)?.name || "N/A"} (Given: {a.givenQuantity})
+                      <SelectItem
+                        key={a.productId}
+                        value={a.productId.toString()}
+                      >
+                        {products.find((p: any) => p.id === a.productId)
+                          ?.name || "N/A"}{" "}
+                        (Given: {a.givenQuantity})
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -208,7 +226,8 @@ function ReadyCopperForm({ onSubmit, onCancel, users, products, assignments, rec
           className={
             inputStyles.base +
             " " +
-            (errors.quantity || (assignment && Number(enteredQuantity) > maxReturnable)
+            (errors.quantity ||
+            (assignment && Number(enteredQuantity) > maxReturnable)
               ? inputStyles.invalid
               : touchedFields.quantity
               ? inputStyles.valid
@@ -216,7 +235,8 @@ function ReadyCopperForm({ onSubmit, onCancel, users, products, assignments, rec
             " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
           }
         />
-        {(errors.quantity || (assignment && Number(enteredQuantity) > maxReturnable)) && (
+        {(errors.quantity ||
+          (assignment && Number(enteredQuantity) > maxReturnable)) && (
           <div className="text-red-600 text-xs mt-1">
             {errors.quantity?.message ||
               (assignment && Number(enteredQuantity) > maxReturnable
@@ -266,9 +286,10 @@ const ReadyCopperPage = () => {
     );
     if (!assignment) return;
     // Find already returned
-    const alreadyReturned = records.find(
-      (r: any) => r.drawerUserId === drawerUserId && r.productId === productId
-    )?.quantity || 0;
+    const alreadyReturned =
+      records.find(
+        (r: any) => r.drawerUserId === drawerUserId && r.productId === productId
+      )?.quantity || 0;
     if (quantity > assignment.givenQuantity - alreadyReturned) return;
     // Add or update record
     const idx = records.findIndex(
@@ -373,10 +394,8 @@ const ReadyCopperPage = () => {
       <div className="py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold font-sans">
-              Ready Copper
-            </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            <h1 className="text-2xl font-semibold font-sans">Ready Copper</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
               Record returned copper from Drawer Users
             </p>
           </div>
@@ -407,13 +426,13 @@ const ReadyCopperPage = () => {
                     <SelectValue placeholder="Select Drawer User" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from(new Set(records.map((r) => r.drawerUserId))).map(
-                      (id) => (
-                        <SelectItem key={id} value={id.toString()}>
-                          {drawerUsers.find((u) => u.id === id)?.name || "N/A"}
-                        </SelectItem>
-                      )
-                    )}
+                    {Array.from(
+                      new Set(records.map((r) => r.drawerUserId))
+                    ).map((id) => (
+                      <SelectItem key={id} value={id.toString()}>
+                        {drawerUsers.find((u) => u.id === id)?.name || "N/A"}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -437,7 +456,9 @@ const ReadyCopperPage = () => {
                           key={r.productId}
                           value={r.productId.toString()}
                         >
-                          {products.find((i) => i.id === r.productId)?.name || "N/A"} (Returned: {r.quantity})
+                          {products.find((i) => i.id === r.productId)?.name ||
+                            "N/A"}{" "}
+                          (Returned: {r.quantity})
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -473,9 +494,7 @@ const ReadyCopperPage = () => {
         {/* Records Table */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-sans">
-              Ready Copper
-            </CardTitle>
+            <CardTitle className="text-lg font-sans">Ready Copper</CardTitle>
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
               <DialogTrigger asChild>
                 <Button onClick={() => setModalOpen(true)}>
@@ -528,7 +547,8 @@ const ReadyCopperPage = () => {
                           ?.name || "N/A"}
                       </td>
                       <td className="px-4 py-2">
-                        {products.find((i) => i.id === record.productId)?.name || "N/A"}
+                        {products.find((i) => i.id === record.productId)
+                          ?.name || "N/A"}
                       </td>
                       <td className="px-4 py-2">{record.quantity}</td>
                       <td className="px-4 py-2">
@@ -601,7 +621,8 @@ const ReadyCopperPage = () => {
                   {history
                     .filter(
                       (h) =>
-                        h.drawerUserId.toString() === historyModalDrawerUserId &&
+                        h.drawerUserId.toString() ===
+                          historyModalDrawerUserId &&
                         h.productId.toString() === historyModalProductId
                     )
                     .map((h, idx) => (
@@ -628,7 +649,7 @@ const ReadyCopperPage = () => {
                     ))}
                 </tbody>
               </table>
-                </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

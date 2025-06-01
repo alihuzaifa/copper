@@ -6,7 +6,6 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
 import SuppliersPage from "@/pages/suppliers-page";
-import CategoriesPage from "@/pages/categories-page";
 import TransactionHistory from "@/pages/transaction-history";
 import ProfilePage from "@/pages/profile";
 import SettingsPage from "@/pages/settings";
@@ -21,6 +20,7 @@ import DrawProcess from "@/pages/workflow/draw-process";
 import ReadyCopper from "@/pages/workflow/ready-copper";
 import PvcPurchase from "@/pages/workflow/pvc-purchase";
 import Production from "@/pages/workflow/production";
+import KhataSalePage from "@/pages/workflow/khata-sale";
 
 function Router() {
   return (
@@ -33,7 +33,7 @@ function Router() {
       <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/users" component={UsersPage} />
       <ProtectedRoute path="/expense" component={ExpensePage} />
-      <ProtectedRoute path="/categories" component={CategoriesPage} />
+      <ProtectedRoute path="/suppliers" component={SuppliersPage} />
       <ProtectedRoute path="/transactions" component={TransactionHistory} />
       <ProtectedRoute path="/profile" component={ProfilePage} />
       <ProtectedRoute path="/settings" component={SettingsPage} />
@@ -46,6 +46,7 @@ function Router() {
       <ProtectedRoute path="/workflow/ready-copper" component={ReadyCopper} />
       <ProtectedRoute path="/workflow/pvc-purchase" component={PvcPurchase} />
       <ProtectedRoute path="/workflow/production" component={Production} />
+      <ProtectedRoute path="/workflow/khata-sale" component={KhataSalePage} />
       
       {/* Fallback to 404 */}
       <Route component={NotFound} />

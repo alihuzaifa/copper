@@ -120,6 +120,19 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
             );
           })}
           
+          {/* Khata Sale Link */}
+          <Link href="/workflow/khata-sale">
+            <a className={cn(
+              "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+              location === "/workflow/khata-sale" 
+                ? "bg-primary text-white"
+                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            )}>
+              <ShoppingCart className="mr-3 h-5 w-5" />
+              Khata Sale
+            </a>
+          </Link>
+          
           <div className="mt-4 mb-2">
             <p className="px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Management
@@ -150,18 +163,6 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
             </a>
           </Link>
           
-          <Link href="/categories">
-            <a className={cn(
-              "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-              location === "/categories" 
-                ? "bg-primary text-white"
-                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-            )}>
-              <FolderKanban className="mr-3 h-5 w-5" />
-              Categories
-            </a>
-          </Link>
-          
           <Link href="/transactions">
             <a className={cn(
               "flex items-center px-3 py-2 text-sm font-medium rounded-md",
@@ -171,18 +172,6 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
             )}>
               <History className="mr-3 h-5 w-5" />
               Transaction History
-            </a>
-          </Link>
-          
-          <Link href="/reports">
-            <a className={cn(
-              "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-              location === "/reports" 
-                ? "bg-primary text-white"
-                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-            )}>
-              <BarChart2 className="mr-3 h-5 w-5" />
-              Reports
             </a>
           </Link>
           

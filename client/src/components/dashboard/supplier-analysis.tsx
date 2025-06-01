@@ -3,8 +3,13 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Star } from "lucide-react";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { Supplier } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Supplier interface (since shared schema is removed)
+interface Supplier {
+  id: string | number;
+  name: string;
+}
 
 const SupplierAnalysis = () => {
   const { data: suppliers, isLoading } = useQuery<Supplier[]>({
@@ -57,7 +62,6 @@ const SupplierAnalysis = () => {
                 <Progress 
                   value={supplier.percentage} 
                   className="h-2 bg-gray-200 dark:bg-gray-700"
-                  indicatorClassName="bg-blue-500 dark:bg-blue-600"
                 />
               </div>
             ))

@@ -8,14 +8,14 @@ interface PvcPurchase {
   supplierId: number;
   pvcColor: string;
   quantity: number;
-  unit: string;
   pricePerUnit: number;
-  totalPrice: number;
-  invoiceNumber?: string;
-  purchaseDate: string;
-  status: string;
-  createdBy?: number;
-  notes?: string;
+  history: PvcPurchaseHistory[];
+}
+interface PvcPurchaseHistory {
+  date: string;
+  quantity: number;
+  pricePerUnit: number;
+  action: 'add' | 'delete' | 'remove';
 }
 
 import { useState } from "react";
@@ -23,7 +23,6 @@ import { format } from "date-fns";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import WorkflowStages from "@/components/layout/workflow-stages";
 import { DataTable } from "@/components/ui/data-table";
-import StatusBadge from "@/components/ui/status-badge";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -55,55 +54,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Plus, MoreHorizontal, Pencil, Search, Filter } from "lucide-react";
+import { Plus, Eye, Trash2 } from "lucide-react";
 
-// Dummy constants for local use
-const STATUS_OPTIONS = [
-  { value: "pending", label: "Pending" },
-  { value: "received", label: "Received" },
-  { value: "cancelled", label: "Cancelled" },
-];
-const UNIT_OPTIONS = ["kg", "meter", "roll"];
 const dummySuppliers: Supplier[] = [
   { id: 1, name: "Supplier A" },
   { id: 2, name: "Supplier B" },
   { id: 3, name: "Supplier C" },
 ];
 
-// Local Zod schema for the form
 const pvcPurchaseFormSchema = z.object({
   supplierId: z.coerce.number().min(1, "Please select a supplier"),
-  pvcColor: z.string().min(1, "Please enter a PVC color"),
+  pvcColor: z.string().min(1, "Please enter a PVC name"),
   quantity: z.coerce.number().positive("Quantity must be positive"),
-  unit: z.string().min(1, "Please select a unit"),
   pricePerUnit: z.coerce.number().positive("Price per unit must be positive"),
-  totalPrice: z.coerce.number().positive("Total price must be positive"),
-  invoiceNumber: z.string().optional(),
-  purchaseDate: z.string().optional(),
-  status: z.string().min(1, "Please select a status"),
-  createdBy: z.number().optional(),
-  notes: z.string().optional(),
 });
 
 type PvcPurchaseFormValues = z.infer<typeof pvcPurchaseFormSchema>;
 
 const PvcPurchasePage = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedPurchase, setSelectedPurchase] = useState<PvcPurchase | null>(null);
   const [pvcPurchases, setPvcPurchases] = useState<PvcPurchase[]>([]);
   const [suppliers] = useState<Supplier[]>(dummySuppliers);
+  const [historyModal, setHistoryModal] = useState<{ open: boolean; purchase: PvcPurchase | null }>({ open: false, purchase: null });
+
+  // Remove from Stock dialog state
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [removePvcColor, setRemovePvcColor] = useState("");
+  const [removeSupplierId, setRemoveSupplierId] = useState("");
+  const [removeQuantity, setRemoveQuantity] = useState("");
+  const [removeError, setRemoveError] = useState("");
 
   // Create PVC purchase form
   const createForm = useForm<PvcPurchaseFormValues>({
@@ -112,186 +93,173 @@ const PvcPurchasePage = () => {
       supplierId: undefined,
       pvcColor: "",
       quantity: undefined,
-      unit: "kg",
       pricePerUnit: undefined,
-      totalPrice: undefined,
-      invoiceNumber: "",
-      purchaseDate: new Date().toISOString(),
-      status: "pending",
-      createdBy: undefined,
-      notes: "",
     },
   });
 
-  // Watch price per unit and quantity to auto-calculate total price
-  const watchPricePerUnit = createForm.watch("pricePerUnit");
-  const watchQuantity = createForm.watch("quantity");
-
-  // Update total price when price per unit or quantity changes
-  useState(() => {
-    if (watchPricePerUnit && watchQuantity) {
-      createForm.setValue("totalPrice", watchPricePerUnit * watchQuantity);
-    }
-  });
-
-  // Edit PVC purchase form
-  const editForm = useForm<PvcPurchaseFormValues>({
-    resolver: zodResolver(pvcPurchaseFormSchema.partial()),
-    defaultValues: {
-      supplierId: selectedPurchase?.supplierId,
-      pvcColor: selectedPurchase?.pvcColor,
-      quantity: selectedPurchase?.quantity ? Number(selectedPurchase.quantity) : undefined,
-      unit: selectedPurchase?.unit,
-      pricePerUnit: selectedPurchase?.pricePerUnit
-        ? Number(selectedPurchase.pricePerUnit)
-        : undefined,
-      totalPrice: selectedPurchase?.totalPrice ? Number(selectedPurchase.totalPrice) : undefined,
-      invoiceNumber: selectedPurchase?.invoiceNumber,
-      purchaseDate: selectedPurchase?.purchaseDate,
-      status: selectedPurchase?.status,
-      createdBy: selectedPurchase?.createdBy,
-      notes: selectedPurchase?.notes || "",
-    },
-  });
-
-  // Update edit form when selected purchase changes
-  useState(() => {
-    if (selectedPurchase) {
-      editForm.reset({
-        supplierId: selectedPurchase.supplierId,
-        pvcColor: selectedPurchase.pvcColor,
-        quantity: selectedPurchase.quantity ? Number(selectedPurchase.quantity) : undefined,
-        unit: selectedPurchase.unit,
-        pricePerUnit: selectedPurchase.pricePerUnit
-          ? Number(selectedPurchase.pricePerUnit)
-          : undefined,
-        totalPrice: selectedPurchase.totalPrice
-          ? Number(selectedPurchase.totalPrice)
-          : undefined,
-        invoiceNumber: selectedPurchase.invoiceNumber,
-        purchaseDate: selectedPurchase.purchaseDate,
-        status: selectedPurchase.status,
-        createdBy: selectedPurchase.createdBy,
-        notes: selectedPurchase.notes || "",
-      });
-    }
-  });
-
-  // Watch price per unit and quantity for edit form
-  const watchEditPricePerUnit = editForm.watch("pricePerUnit");
-  const watchEditQuantity = editForm.watch("quantity");
-
-  // Update total price for edit form
-  useState(() => {
-    if (watchEditPricePerUnit && watchEditQuantity) {
-      editForm.setValue("totalPrice", watchEditPricePerUnit * watchEditQuantity);
-    }
-  });
-
-  // Add new PVC purchase
+  // Add or update PVC purchase
   const onCreateSubmit = (data: PvcPurchaseFormValues) => {
-    const newPurchase: PvcPurchase = {
-      id: Date.now(),
-      ...data,
-      purchaseDate: data.purchaseDate || new Date().toISOString(),
-    };
-    setPvcPurchases((prev) => [newPurchase, ...prev]);
+    setPvcPurchases((prev) => {
+      const existingIdx = prev.findIndex(
+        (p) =>
+          p.pvcColor.trim().toLowerCase() === data.pvcColor.trim().toLowerCase() &&
+          p.supplierId === data.supplierId
+      );
+      const now = new Date().toISOString();
+      if (existingIdx !== -1) {
+        // Update existing
+        const updated = [...prev];
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          quantity: updated[existingIdx].quantity + data.quantity,
+          pricePerUnit: data.pricePerUnit, // update to latest price
+          history: [
+            ...updated[existingIdx].history,
+            {
+              date: now,
+              quantity: data.quantity,
+              pricePerUnit: data.pricePerUnit,
+              action: 'add' as const,
+            },
+          ],
+        };
+        return updated;
+      } else {
+        // New record
+        return [
+          {
+            id: Date.now(),
+            supplierId: data.supplierId,
+            pvcColor: data.pvcColor,
+            quantity: data.quantity,
+            pricePerUnit: data.pricePerUnit,
+            history: [
+              {
+                date: now,
+                quantity: data.quantity,
+                pricePerUnit: data.pricePerUnit,
+                action: 'add' as const,
+              },
+            ],
+          },
+          ...prev,
+        ];
+      }
+    });
     setIsAddDialogOpen(false);
     createForm.reset();
   };
 
-  // Edit existing PVC purchase
-  const onEditSubmit = (data: PvcPurchaseFormValues) => {
-    if (selectedPurchase) {
-      setPvcPurchases((prev) =>
-        prev.map((p) =>
-          p.id === selectedPurchase.id
-            ? { ...p, ...data, purchaseDate: data.purchaseDate || p.purchaseDate }
-            : p
-        )
-      );
-      setIsEditDialogOpen(false);
-      setSelectedPurchase(null);
-    }
+  // Delete PVC purchase
+  const handleDelete = (id: number) => {
+    setPvcPurchases((prev) => {
+      const idx = prev.findIndex((p) => p.id === id);
+      if (idx === -1) return prev;
+      const now = new Date().toISOString();
+      const updated = [...prev];
+      // Add delete action to history before removal
+      updated[idx] = {
+        ...updated[idx],
+        history: [
+          ...updated[idx].history,
+          {
+            date: now,
+            quantity: updated[idx].quantity,
+            pricePerUnit: updated[idx].pricePerUnit,
+            action: 'delete' as const,
+          },
+        ],
+      };
+      // Optionally, you could keep a global history here if needed
+      // Remove the record
+      updated.splice(idx, 1);
+      return updated;
+    });
   };
 
-  // Filter purchases based on search and status
-  const filteredPurchases = pvcPurchases.filter((purchase) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      purchase.pvcColor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      purchase.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      purchase.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "" || purchase.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Remove from PVC Stock logic
+  const handleRemoveFromStock = () => {
+    setRemoveError("");
+    const supplierId = parseInt(removeSupplierId);
+    const pvcColor = removePvcColor.trim();
+    const quantityToRemove = parseFloat(removeQuantity);
+    if (!pvcColor || !supplierId || !quantityToRemove || quantityToRemove <= 0) {
+      setRemoveError("Please select a PVC, supplier, and enter a valid quantity.");
+      return;
+    }
+    const idx = pvcPurchases.findIndex(
+      (p) =>
+        p.pvcColor.toLowerCase() === pvcColor.toLowerCase() &&
+        p.supplierId === supplierId
+    );
+    if (idx === -1) {
+      setRemoveError("PVC and supplier not found.");
+      return;
+    }
+    const purchase = pvcPurchases[idx];
+    if (quantityToRemove > purchase.quantity) {
+      setRemoveError("Cannot remove more than available stock for this supplier.");
+      return;
+    }
+    // Add remove action to history before removal
+    const updatedPurchase = {
+      ...purchase,
+      quantity: purchase.quantity - quantityToRemove,
+      history: [
+        ...purchase.history,
+        {
+          date: new Date().toISOString(),
+          quantity: quantityToRemove,
+          pricePerUnit: purchase.pricePerUnit,
+          action: 'remove' as const,
+        },
+      ],
+    };
+    let updatedPurchases = [...pvcPurchases];
+    // Always remove the record from the table, regardless of remaining quantity
+    updatedPurchases.splice(idx, 1);
+    setPvcPurchases(updatedPurchases);
+    setRemoveDialogOpen(false);
+    setRemovePvcColor("");
+    setRemoveSupplierId("");
+    setRemoveQuantity("");
+    setRemoveError("");
+  };
 
-  // Sort by purchase date (newest first)
-  const sortedPurchases = [...filteredPurchases].sort(
-    (a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
-  );
-
-  // DataTable columns
-  const columns: {
-    header: string;
-    accessorKey: keyof PvcPurchase | ((row: PvcPurchase) => React.ReactNode);
-    cell?: (row: PvcPurchase) => React.ReactNode;
-  }[] = [
+  // Table columns
+  const columns = [
     {
-      header: "ID",
-      accessorKey: (row) => `PVC-${row.id.toString().padStart(4, "0")}`,
-    },
-    {
-      header: "Color",
-      accessorKey: "pvcColor",
+      header: "PVC Name",
+      accessorKey: "pvcColor" as keyof PvcPurchase,
     },
     {
       header: "Supplier",
-      accessorKey: (row) => {
-        const supplier = suppliers.find((s) => s.id === row.supplierId);
-        return supplier ? supplier.name : "N/A";
-      },
+      accessorKey: (row: PvcPurchase) => suppliers.find((s) => s.id === row.supplierId)?.name || "N/A",
     },
     {
       header: "Quantity",
-      accessorKey: (row) => `${Number(row.quantity).toLocaleString()} ${row.unit}`,
+      accessorKey: (row: PvcPurchase) => row.quantity,
     },
     {
-      header: "Total Price",
-      accessorKey: (row) => `₹${Number(row.totalPrice).toLocaleString("en-IN")}`,
+      header: "Price/Unit (₹)",
+      accessorKey: (row: PvcPurchase) => `₹${row.pricePerUnit}`,
     },
     {
-      header: "Date",
-      accessorKey: "purchaseDate",
-      cell: (row) => format(new Date(row.purchaseDate), "MMM dd, yyyy"),
+      header: "History",
+      accessorKey: (row: PvcPurchase) => row.id,
+      cell: (row: PvcPurchase) => (
+        <Button variant="ghost" className="h-8 w-8 p-0" onClick={() => setHistoryModal({ open: true, purchase: row })}>
+          <Eye className="h-4 w-4" />
+        </Button>
+      ),
     },
     {
-      header: "Status",
-      accessorKey: "status",
-      cell: (row) => <StatusBadge status={row.status} />,
-    },
-    {
-      header: "Actions",
-      accessorKey: "id",
-      cell: (row) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => {
-                setSelectedPurchase(row);
-                setIsEditDialogOpen(true);
-              }}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      header: "Delete",
+      accessorKey: (row: PvcPurchase) => row.id,
+      cell: (row: PvcPurchase) => (
+        <Button variant="destructive" className="h-8 w-8 p-0" onClick={() => handleDelete(row.id)}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
       ),
     },
   ];
@@ -302,12 +270,85 @@ const PvcPurchasePage = () => {
         {/* Workflow Stages */}
         <WorkflowStages currentStage={5} />
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold font-sans">PVC Purchase</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Manage PVC material purchases for wire insulation
-          </p>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold font-sans">PVC Purchase</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+              Manage PVC material purchases for wire insulation
+            </p>
+          </div>
+          <Button variant="destructive" onClick={() => setRemoveDialogOpen(true)}>
+            Remove from PVC Stock
+          </Button>
         </div>
+
+        {/* Remove from PVC Stock Dialog */}
+        <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Remove from PVC Stock</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1 font-medium">PVC Name</label>
+                <Select
+                  value={removePvcColor}
+                  onValueChange={(v) => {
+                    setRemovePvcColor(v);
+                    setRemoveSupplierId("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select PVC" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from(new Set(pvcPurchases.map((p) => p.pvcColor))).map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Supplier</label>
+                <Select
+                  value={removeSupplierId}
+                  onValueChange={setRemoveSupplierId}
+                  disabled={!removePvcColor}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pvcPurchases
+                      .filter((p) => p.pvcColor === removePvcColor)
+                      .map((p) => (
+                        <SelectItem key={p.supplierId} value={p.supplierId.toString()}>
+                          {suppliers.find((s) => s.id === p.supplierId)?.name || "N/A"} (Stock: {p.quantity})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Quantity to Remove</label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={removeQuantity}
+                  onChange={(e) => setRemoveQuantity(e.target.value)}
+                  placeholder="Enter quantity"
+                />
+              </div>
+              {removeError && <div className="text-red-600 text-xs">{removeError}</div>}
+              <div className="flex justify-end space-x-2 pt-2">
+                <Button variant="outline" onClick={() => setRemoveDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleRemoveFromStock}>Remove</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between border-b border-gray-200 dark:border-gray-700">
@@ -319,7 +360,7 @@ const PvcPurchasePage = () => {
                   Add PVC Purchase
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
+              <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle>Add New PVC Purchase</DialogTitle>
                 </DialogHeader>
@@ -364,132 +405,9 @@ const PvcPurchasePage = () => {
                       name="pvcColor"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>PVC Color</FormLabel>
+                          <FormLabel>PVC Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Enter PVC color (e.g. Red, Black)" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={createForm.control}
-                        name="quantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Quantity</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter quantity"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
-                                  if (watchPricePerUnit && e.target.value) {
-                                    createForm.setValue(
-                                      "totalPrice",
-                                      parseFloat(e.target.value) * watchPricePerUnit
-                                    );
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="unit"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Unit</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select unit" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {UNIT_OPTIONS.map((unit) => (
-                                  <SelectItem key={unit} value={unit}>
-                                    {unit}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={createForm.control}
-                        name="pricePerUnit"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Price Per Unit (₹)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Enter price per unit"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
-                                  if (watchQuantity && e.target.value) {
-                                    createForm.setValue(
-                                      "totalPrice",
-                                      parseFloat(e.target.value) * watchQuantity
-                                    );
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="totalPrice"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Total Price (₹)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Total price"
-                                {...field}
-                                readOnly
-                                className="bg-gray-50 dark:bg-gray-800"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={createForm.control}
-                      name="invoiceNumber"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Invoice Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter invoice number" {...field} />
+                            <Input placeholder="Enter PVC name (e.g. Red, Black)" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -498,27 +416,13 @@ const PvcPurchasePage = () => {
 
                     <FormField
                       control={createForm.control}
-                      name="status"
+                      name="quantity"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {STATUS_OPTIONS.map((status) => (
-                                <SelectItem key={status.value} value={status.value}>
-                                  {status.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormLabel>Quantity</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.01" placeholder="Enter quantity" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -526,12 +430,12 @@ const PvcPurchasePage = () => {
 
                     <FormField
                       control={createForm.control}
-                      name="notes"
+                      name="pricePerUnit"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Notes</FormLabel>
+                          <FormLabel>Price Per Unit (₹)</FormLabel>
                           <FormControl>
-                            <Textarea placeholder="Add any notes or comments" {...field} />
+                            <Input type="number" step="0.01" placeholder="Enter price per unit" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -542,11 +446,7 @@ const PvcPurchasePage = () => {
                       <Button type="button" variant="outline" className="mr-2" onClick={() => setIsAddDialogOpen(false)}>
                         Cancel
                       </Button>
-                      <Button
-                        type="submit"
-                      >
-                        Save
-                      </Button>
+                      <Button type="submit">Save</Button>
                     </div>
                   </form>
                 </Form>
@@ -554,279 +454,47 @@ const PvcPurchasePage = () => {
             </Dialog>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 flex flex-col sm:flex-row justify-between gap-4">
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search purchases..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="w-full sm:w-48">
-                <Select
-                  value={statusFilter}
-                  onValueChange={setStatusFilter}
-                >
-                  <SelectTrigger>
-                    <div className="flex items-center">
-                      <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Filter by status" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status.value} value={status.value}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <DataTable
-              columns={columns}
-              data={sortedPurchases}
-            />
+            <DataTable columns={columns} data={pvcPurchases} />
           </CardContent>
         </Card>
 
-        {/* Edit PVC Purchase Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {/* History Modal */}
+        <Dialog open={historyModal.open} onOpenChange={(open) => setHistoryModal({ open, purchase: open ? historyModal.purchase : null })}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Edit PVC Purchase</DialogTitle>
+              <DialogTitle>PVC Purchase History</DialogTitle>
             </DialogHeader>
-            <Form {...editForm}>
-              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-                <FormField
-                  control={editForm.control}
-                  name="supplierId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Supplier</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a supplier" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {suppliers.length > 0 ? (
-                            suppliers.map((supplier) => (
-                              <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                                {supplier.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="empty" disabled>
-                              No suppliers available
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Price/Unit (₹)</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date/Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyModal.purchase?.history.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="text-center py-4 text-gray-500 dark:text-gray-400">No history yet.</td>
+                    </tr>
                   )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="pvcColor"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>PVC Color</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter PVC color (e.g. Red, Black)" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={editForm.control}
-                    name="quantity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Quantity</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Enter quantity"
-                            {...field}
-                            onChange={(e) => {
-                              field.onChange(parseFloat(e.target.value));
-                              if (watchEditPricePerUnit && e.target.value) {
-                                editForm.setValue(
-                                  "totalPrice",
-                                  parseFloat(e.target.value) * watchEditPricePerUnit
-                                );
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="unit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Unit</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select unit" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {UNIT_OPTIONS.map((unit) => (
-                              <SelectItem key={unit} value={unit}>
-                                {unit}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={editForm.control}
-                    name="pricePerUnit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Price Per Unit (₹)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Enter price per unit"
-                            {...field}
-                            onChange={(e) => {
-                              field.onChange(parseFloat(e.target.value));
-                              if (watchEditQuantity && e.target.value) {
-                                editForm.setValue(
-                                  "totalPrice",
-                                  parseFloat(e.target.value) * watchEditQuantity
-                                );
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={editForm.control}
-                    name="totalPrice"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Total Price (₹)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Total price"
-                            {...field}
-                            readOnly
-                            className="bg-gray-50 dark:bg-gray-800"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={editForm.control}
-                  name="invoiceNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Invoice Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter invoice number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status.value} value={status.value}>
-                              {status.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editForm.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Add any notes or comments" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end">
-                  <Button type="button" variant="outline" className="mr-2" onClick={() => setIsEditDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                  >
-                    Update
-                  </Button>
-                </div>
-              </form>
-            </Form>
+                  {historyModal.purchase?.history.map((h, idx) => (
+                    <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
+                      <td className="px-4 py-2">
+                        <span className={h.action === "add" ? "text-green-600" : h.action === "remove" ? "text-blue-600" : "text-red-600"}>
+                          {h.action === "add" ? "Add" : h.action === "remove" ? "Remove" : "Delete"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">{h.quantity}</td>
+                      <td className="px-4 py-2">₹{h.pricePerUnit}</td>
+                      <td className="px-4 py-2">{format(new Date(h.date), "yyyy-MM-dd HH:mm:ss")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

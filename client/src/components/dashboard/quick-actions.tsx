@@ -32,16 +32,6 @@ const QuickActions = () => {
           </Button>
         </Link>
         
-        <Link href="/reports">
-          <Button 
-            variant="outline" 
-            className="w-full flex items-center justify-center"
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Generate Report
-          </Button>
-        </Link>
-        
         <Link href="/transactions">
           <Button 
             variant="outline" 

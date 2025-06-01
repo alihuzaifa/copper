@@ -1,0 +1,16 @@
+/* Remove default focus outline and border for all input, select, and button fields */
+input:focus, input:focus-visible,
+select:focus, select:focus-visible,
+button:focus, button:focus-visible,
+textarea:focus, textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit !important;
+}
+
+/* Remove focus ring for shadcn/ui and similar components */
+[data-shadcn-ui] input:focus, [data-shadcn-ui] select:focus, [data-shadcn-ui] button:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit !important;
+} 

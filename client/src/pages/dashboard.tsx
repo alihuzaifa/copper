@@ -7,8 +7,6 @@ import RecentActivity from "@/components/dashboard/recent-activity";
 import QuickActions from "@/components/dashboard/quick-actions";
 import StockStatus from "@/components/dashboard/stock-status";
 import TransactionsTable from "@/components/dashboard/transactions-table";
-import ManufacturingOverview from "@/components/dashboard/manufacturing-overview";
-import SupplierAnalysis from "@/components/dashboard/supplier-analysis";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -81,7 +79,7 @@ const Dashboard = () => {
               
               <StatsCard
                 title="Total Value"
-                value={`₹${(stats?.totalValue / 100000 || 0).toFixed(1)}L`}
+                value={`₹${((stats?.totalValue ?? 0) / 100000).toFixed(1)}L`}
                 icon={DollarSign}
                 iconColor="text-yellow-500 dark:text-yellow-300"
                 iconBgColor="bg-yellow-100 dark:bg-yellow-900"
@@ -107,12 +105,6 @@ const Dashboard = () => {
         
         {/* Recent Transactions */}
         <TransactionsTable />
-        
-        {/* Manufacturing Process Overview & Supplier Analysis */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <ManufacturingOverview />
-          <SupplierAnalysis />
-        </div>
         
         {/* Footer */}
         <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400 pb-6">
