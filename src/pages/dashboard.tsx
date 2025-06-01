@@ -26,7 +26,7 @@ const Dashboard = () => {
     <DashboardLayout>
       <div className="py-6 px-4 sm:px-6 lg:px-8">
         {/* Workflow Stages */}
-        <WorkflowStages currentStage={3} />
+        <WorkflowStages allChecked />
         
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

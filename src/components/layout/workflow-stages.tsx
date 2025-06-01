@@ -3,9 +3,10 @@ import { cn } from "@/lib/utils";
 
 interface WorkflowStagesProps {
   currentStage?: number;
+  allChecked?: boolean;
 }
 
-const WorkflowStages = ({ currentStage = 0 }: WorkflowStagesProps) => {
+const WorkflowStages = ({ currentStage = 0, allChecked = false }: WorkflowStagesProps) => {
   return (
     <div className="mb-8">
       <h2 className="text-lg font-sans font-semibold mb-4">Manufacturing Workflow</h2>
@@ -20,7 +21,7 @@ const WorkflowStages = ({ currentStage = 0 }: WorkflowStagesProps) => {
               <div 
                 className={cn(
                   "z-10 rounded-full w-8 h-8 flex items-center justify-center text-white text-sm mb-2",
-                  stage.id < currentStage 
+                  allChecked || stage.id < currentStage 
                     ? "bg-green-500 dark:bg-green-600" 
                     : stage.id === currentStage 
                       ? "bg-primary dark:bg-primary" 

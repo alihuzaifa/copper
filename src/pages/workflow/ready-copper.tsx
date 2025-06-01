@@ -22,6 +22,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import dayjs from "dayjs";
+import WorkflowStages from "@/components/layout/workflow-stages";
 
 // Dummy data
 const dummyDrawerUsers = [
@@ -392,6 +393,9 @@ const ReadyCopperPage = () => {
   return (
     <DashboardLayout>
       <div className="py-6 px-4 sm:px-6 lg:px-8">
+        {/* Workflow Stages */}
+        <WorkflowStages currentStage={4} />
+
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold font-sans">Ready Copper</h1>
