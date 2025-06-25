@@ -16,28 +16,30 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
-const loginSchema = z.object({
+const signupSchema = z.object({
+  name: z.string().min(1, "Name is required"),
   email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type SignupFormValues = z.infer<typeof signupSchema>;
 
-export function LoginForm() {
+export function SignupForm() {
   const [, navigate] = useLocation();
-  const { loginMutation } = useAuth();
+  const { signupMutation } = useAuth();
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<SignupFormValues>({
+    resolver: zodResolver(signupSchema),
     defaultValues: {
+      name: "",
       email: "",
       password: "",
     },
   });
 
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = async (data: SignupFormValues) => {
     try {
-      await loginMutation.mutateAsync(data);
+      await signupMutation.mutateAsync(data);
       navigate("/dashboard");
     } catch (error) {
       // Error is handled by the mutation
@@ -46,14 +48,34 @@ export function LoginForm() {
 
   return (
     <div className="space-y-6 w-full max-w-md mx-auto">
-      {loginMutation.error && (
+      {signupMutation.error && (
         <Alert variant="destructive">
-          <AlertDescription>{loginMutation.error.message}</AlertDescription>
+          <AlertDescription>{signupMutation.error.message}</AlertDescription>
         </Alert>
       )}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter your name"
+                    type="text"
+                    autoComplete="name"
+                    disabled={signupMutation.isPending}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <FormField
             control={form.control}
             name="email"
@@ -65,7 +87,7 @@ export function LoginForm() {
                     placeholder="Enter your email"
                     type="email"
                     autoComplete="email"
-                    disabled={loginMutation.isPending}
+                    disabled={signupMutation.isPending}
                     {...field}
                   />
                 </FormControl>
@@ -84,8 +106,8 @@ export function LoginForm() {
                   <Input
                     placeholder="Enter your password"
                     type="password"
-                    autoComplete="current-password"
-                    disabled={loginMutation.isPending}
+                    autoComplete="new-password"
+                    disabled={signupMutation.isPending}
                     {...field}
                   />
                 </FormControl>
@@ -94,43 +116,32 @@ export function LoginForm() {
             )}
           />
 
-          <div className="flex items-center justify-end">
-            <Button
-              type="button"
-              variant="link"
-              className="px-0"
-              onClick={() => navigate("/forgot-password")}
-            >
-              Forgot password?
-            </Button>
-          </div>
-
-          <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
-            {loginMutation.isPending ? (
+          <Button type="submit" className="w-full" disabled={signupMutation.isPending}>
+            {signupMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Signing in...
+                Creating account...
               </>
             ) : (
-              "Sign in"
+              "Create account"
             )}
           </Button>
 
           <div className="text-center">
             <span className="text-gray-500 dark:text-gray-400">
-              Don't have an account?{" "}
+              Already have an account?{" "}
             </span>
             <Button
               type="button"
               variant="link"
               className="px-0"
-              onClick={() => navigate("/signup")}
+              onClick={() => navigate("/login")}
             >
-              Sign up
+              Sign in
             </Button>
           </div>
         </form>
       </Form>
     </div>
   );
-}
+} 

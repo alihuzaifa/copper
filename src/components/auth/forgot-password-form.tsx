@@ -16,29 +16,27 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
-const loginSchema = z.object({
+const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
-export function LoginForm() {
+export function ForgotPasswordForm() {
   const [, navigate] = useLocation();
-  const { loginMutation } = useAuth();
+  const { forgotPasswordMutation } = useAuth();
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<ForgotPasswordFormValues>({
+    resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
       email: "",
-      password: "",
     },
   });
 
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = async (data: ForgotPasswordFormValues) => {
     try {
-      await loginMutation.mutateAsync(data);
-      navigate("/dashboard");
+      await forgotPasswordMutation.mutateAsync(data);
+      navigate("/verify-otp");
     } catch (error) {
       // Error is handled by the mutation
     }
@@ -46,9 +44,9 @@ export function LoginForm() {
 
   return (
     <div className="space-y-6 w-full max-w-md mx-auto">
-      {loginMutation.error && (
+      {forgotPasswordMutation.error && (
         <Alert variant="destructive">
-          <AlertDescription>{loginMutation.error.message}</AlertDescription>
+          <AlertDescription>{forgotPasswordMutation.error.message}</AlertDescription>
         </Alert>
       )}
 
@@ -65,7 +63,7 @@ export function LoginForm() {
                     placeholder="Enter your email"
                     type="email"
                     autoComplete="email"
-                    disabled={loginMutation.isPending}
+                    disabled={forgotPasswordMutation.isPending}
                     {...field}
                   />
                 </FormControl>
@@ -74,63 +72,29 @@ export function LoginForm() {
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Enter your password"
-                    type="password"
-                    autoComplete="current-password"
-                    disabled={loginMutation.isPending}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="flex items-center justify-end">
-            <Button
-              type="button"
-              variant="link"
-              className="px-0"
-              onClick={() => navigate("/forgot-password")}
-            >
-              Forgot password?
-            </Button>
-          </div>
-
-          <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
-            {loginMutation.isPending ? (
+          <Button type="submit" className="w-full" disabled={forgotPasswordMutation.isPending}>
+            {forgotPasswordMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Signing in...
+                Sending code...
               </>
             ) : (
-              "Sign in"
+              "Send verification code"
             )}
           </Button>
 
           <div className="text-center">
-            <span className="text-gray-500 dark:text-gray-400">
-              Don't have an account?{" "}
-            </span>
             <Button
               type="button"
               variant="link"
               className="px-0"
-              onClick={() => navigate("/signup")}
+              onClick={() => navigate("/login")}
             >
-              Sign up
+              Back to login
             </Button>
           </div>
         </form>
       </Form>
     </div>
   );
-}
+} 

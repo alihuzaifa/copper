@@ -1,58 +1,46 @@
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import LoginForm from "./login-form";
-import RegisterForm from "./register-form";
-import ResetPassword from "./reset-password";
+import { useStore } from "@/store/store";
+import { LoginForm } from "./login-form";
+import { SignupForm } from "./signup-form";
+import { ForgotPasswordForm } from "./forgot-password-form";
+import { OtpVerificationForm } from "./otp-verification-form";
+import { ResetPasswordForm } from "./reset-password-form";
 
-const AuthForm = () => {
-  const [activeTab, setActiveTab] = useState<string>("login");
-  const [showResetPassword, setShowResetPassword] = useState(false);
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+export function AuthForm() {
+  const { authStep } = useStore();
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardContent className="pt-6">
-        {showResetPassword ? (
-          <>
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-center mb-2">Reset Password</h2>
-              <p className="text-sm text-gray-500 text-center">
-                Enter your email to receive a password reset OTP
-              </p>
-            </div>
-            <ResetPassword onCancel={() => setShowResetPassword(false)} />
-          </>
-        ) : (
-          <>
-            <div className="text-center mb-6">
-              <h1 className="text-2xl font-bold">Welcome to CopperMgmt</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Copper Manufacturing Stock Management System
-              </p>
-            </div>
-
-            <Tabs
-              defaultValue="login"
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="w-full"
-            >
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="register">Register</TabsTrigger>
-              </TabsList>
-              <TabsContent value="login">
-                <LoginForm onForgotPassword={() => setShowResetPassword(true)} />
-              </TabsContent>
-              <TabsContent value="register">
-                <RegisterForm onSuccess={() => setActiveTab("login")} />
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
+    <Card className="w-full border-none bg-white/50 backdrop-blur-xl dark:bg-gray-800/50">
+      <CardHeader>
+        <CardTitle className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+          {authStep === 'login' && "Welcome back"}
+          {authStep === 'signup' && "Create an account"}
+          {authStep === 'forgot-password' && "Forgot password"}
+          {authStep === 'verify-otp' && "Verify OTP"}
+          {authStep === 'reset-password' && "Reset password"}
+        </CardTitle>
+        <CardDescription className="text-sm text-gray-500 dark:text-gray-400">
+          {authStep === 'login' && "Enter your credentials to access your account"}
+          {authStep === 'signup' && "Enter your details to create your account"}
+          {authStep === 'forgot-password' && "Enter your email to reset your password"}
+          {authStep === 'verify-otp' && "Enter the OTP sent to your email"}
+          {authStep === 'reset-password' && "Enter your new password"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {authStep === 'login' && <LoginForm />}
+        {authStep === 'signup' && <SignupForm />}
+        {authStep === 'forgot-password' && <ForgotPasswordForm />}
+        {authStep === 'verify-otp' && <OtpVerificationForm />}
+        {authStep === 'reset-password' && <ResetPasswordForm />}
       </CardContent>
     </Card>
   );
-};
-
-export default AuthForm;
+}

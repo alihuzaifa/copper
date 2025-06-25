@@ -1,6 +1,10 @@
-import { AuthForm } from "@/components/auth/auth-form";
+interface AuthLayoutProps {
+  children: React.ReactNode;
+  title: string;
+  description: string;
+}
 
-export function AuthPage() {
+export function AuthLayout({ children, title, description }: AuthLayoutProps) {
   return (
     <div className="min-h-screen w-full bg-gray-50 dark:bg-gray-900">
       {/* Background Pattern */}
@@ -21,10 +25,22 @@ export function AuthPage() {
             </p>
           </div>
 
-          {/* Auth Form */}
-          <AuthForm />
+          {/* Auth Card */}
+          <div className="w-full">
+            <div className="w-full border-none bg-white/50 backdrop-blur-xl dark:bg-gray-800/50 rounded-lg p-6">
+              <div className="flex flex-col space-y-2 text-center mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                  {title}
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {description}
+                </p>
+              </div>
+              {children}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
-}
+} 

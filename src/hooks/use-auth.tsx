@@ -2,6 +2,7 @@ import { createContext, ReactNode, useContext, useState } from "react";
 import { useMutation, UseMutationResult } from "@tanstack/react-query";
 import { queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from "@/lib/api-service";
 
 // Mock user type
 interface MockUser {
@@ -14,14 +15,23 @@ interface MockUser {
   createdAt: Date;
 }
 
-type AuthContextType = {
-  user: MockUser | null;
-  isLoading: boolean;
-  error: Error | null;
-  loginMutation: UseMutationResult<MockUser, Error, LoginData>;
-  logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<RegisterResponse, Error, RegisterData>;
-};
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  loginMutation: ReturnType<typeof useLoginMutation>;
+  signupMutation: ReturnType<typeof useSignupMutation>;
+  forgotPasswordMutation: ReturnType<typeof useForgotPasswordMutation>;
+  verifyOtpMutation: ReturnType<typeof useVerifyOtpMutation>;
+  resendOtpMutation: ReturnType<typeof useResendOtpMutation>;
+  resetPasswordMutation: ReturnType<typeof useResetPasswordMutation>;
+  logoutMutation: ReturnType<typeof useLogoutMutation>;
+}
 
 type LoginData = {
   username: string;
@@ -42,6 +52,56 @@ type RegisterResponse = {
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
+// Custom hooks for each auth operation
+function useLoginMutation() {
+  return useMutation({
+    mutationFn: (data: { email: string; password: string }) =>
+      apiService.auth.login(data),
+  });
+}
+
+function useSignupMutation() {
+  return useMutation({
+    mutationFn: (data: { name: string; email: string; password: string }) =>
+      apiService.auth.signup(data),
+  });
+}
+
+function useForgotPasswordMutation() {
+  return useMutation({
+    mutationFn: (data: { email: string }) =>
+      apiService.auth.forgotPassword(data),
+  });
+}
+
+function useVerifyOtpMutation() {
+  return useMutation({
+    mutationFn: (data: { otp: string }) =>
+      apiService.auth.verifyOtp(data),
+  });
+}
+
+function useResendOtpMutation() {
+  return useMutation({
+    mutationFn: () =>
+      apiService.auth.resendOtp(),
+  });
+}
+
+function useResetPasswordMutation() {
+  return useMutation({
+    mutationFn: (data: { password: string }) =>
+      apiService.auth.resetPassword(data),
+  });
+}
+
+function useLogoutMutation() {
+  return useMutation({
+    mutationFn: () =>
+      apiService.auth.logout(),
+  });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   // Use useState for mock data
@@ -58,108 +118,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isLoading = false;
   const error = null;
 
-  // Mock login mutation that simulates API call
-  const loginMutation = useMutation({
-    mutationFn: async (credentials: LoginData): Promise<MockUser> => {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Always return success for mock data
-      return user;
-    },
-    onSuccess: (user: MockUser) => {
-      // Set the user in the query cache
-      queryClient.setQueryData(["/api/user"], user);
-      
-      toast({
-        title: "Login successful",
-        description: `Welcome back, ${user.name}`,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  // Initialize all mutations
+  const loginMutation = useLoginMutation();
+  const signupMutation = useSignupMutation();
+  const forgotPasswordMutation = useForgotPasswordMutation();
+  const verifyOtpMutation = useVerifyOtpMutation();
+  const resendOtpMutation = useResendOtpMutation();
+  const resetPasswordMutation = useResetPasswordMutation();
+  const logoutMutation = useLogoutMutation();
 
-  // Mock registration mutation
-  const registerMutation = useMutation({
-    mutationFn: async (userData: RegisterData): Promise<RegisterResponse> => {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Create a new mock user
-      const newUser: MockUser = {
-        id: Math.floor(Math.random() * 1000),
-        name: userData.name,
-        username: userData.username,
-        email: userData.email,
-        role: "user",
-        isVerified: true,
-        createdAt: new Date(),
-      };
-      
-      return {
-        user: newUser,
-        requiresVerification: false
-      };
-    },
-    onSuccess: (data: RegisterResponse) => {
-      queryClient.setQueryData(["/api/user"], data.user);
-      toast({
-        title: "Registration successful",
-        description: "Your account has been created successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const value = {
+    user,
+    isLoading,
+    error,
+    loginMutation,
+    signupMutation,
+    forgotPasswordMutation,
+    verifyOtpMutation,
+    resendOtpMutation,
+    resetPasswordMutation,
+    logoutMutation,
+  };
 
-  // Mock logout mutation
-  const logoutMutation = useMutation({
-    mutationFn: async (): Promise<void> => {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return;
-    },
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
-      toast({
-        title: "Logout successful",
-        description: "You have been logged out.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Logout failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        error,
-        loginMutation,
-        logoutMutation,
-        registerMutation,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

@@ -1,9 +1,18 @@
 import { Switch, Route } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/theme-provider";
 import { ProtectedRoute } from "./lib/protected-route";
 import NotFound from "@/pages/not-found";
-import AuthPage from "@/pages/auth-page";
+
+// Auth Pages
+import LoginPage from "@/pages/auth/login";
+import SignupPage from "@/pages/auth/signup";
+import ForgotPasswordPage from "@/pages/auth/forgot-password";
+import VerifyOtpPage from "@/pages/auth/verify-otp";
+import ResetPasswordPage from "@/pages/auth/reset-password";
+
+// Main Pages
 import Dashboard from "@/pages/dashboard";
 import SuppliersPage from "@/pages/suppliers-page";
 import TransactionHistory from "@/pages/transaction-history";
@@ -12,6 +21,7 @@ import SettingsPage from "@/pages/settings";
 import UserCreationPage from "@/pages/user-creation";
 import UsersPage from "@/pages/users-page";
 import ExpensePage from "@/pages/expense-page";
+import PurchasePage from "@/pages/purchase-page";
 
 // Workflow pages
 import PurchaseManagement from "@/pages/workflow/purchase-management";
@@ -22,44 +32,109 @@ import PvcPurchase from "@/pages/workflow/pvc-purchase";
 import Production from "@/pages/workflow/production";
 import KhataSalePage from "@/pages/workflow/khata-sale";
 
-function Router() {
-  return (
-    <Switch>
-      {/* Auth Routes */}
-      <Route path="/auth" component={AuthPage} />
-      
-      {/* Protected Routes */}
-      <ProtectedRoute path="/" component={Dashboard} />
-      <ProtectedRoute path="/dashboard" component={Dashboard} />
-      <ProtectedRoute path="/users" component={UsersPage} />
-      <ProtectedRoute path="/expense" component={ExpensePage} />
-      <ProtectedRoute path="/suppliers" component={SuppliersPage} />
-      <ProtectedRoute path="/transactions" component={TransactionHistory} />
-      <ProtectedRoute path="/profile" component={ProfilePage} />
-      <ProtectedRoute path="/settings" component={SettingsPage} />
-      <ProtectedRoute path="/users/create" component={UserCreationPage} />
-      
-      {/* Workflow Routes */}
-      <ProtectedRoute path="/workflow/purchase-management" component={PurchaseManagement} />
-      <ProtectedRoute path="/workflow/kacha-processing" component={KachaProcessing} />
-      <ProtectedRoute path="/workflow/draw-process" component={DrawProcess} />
-      <ProtectedRoute path="/workflow/ready-copper" component={ReadyCopper} />
-      <ProtectedRoute path="/workflow/pvc-purchase" component={PvcPurchase} />
-      <ProtectedRoute path="/workflow/production" component={Production} />
-      <ProtectedRoute path="/workflow/khata-sale" component={KhataSalePage} />
-      
-      {/* Fallback to 404 */}
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
-
 function App() {
   return (
-    <TooltipProvider>
-      <Toaster />
-      <Router />
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Switch>
+          {/* Public Auth Routes */}
+          <Route path="/" component={LoginPage} />
+          <Route path="/login" component={LoginPage} />
+          <Route path="/signup" component={SignupPage} />
+          <Route path="/forgot-password" component={ForgotPasswordPage} />
+          <Route path="/verify-otp" component={VerifyOtpPage} />
+          <Route path="/reset-password" component={ResetPasswordPage} />
+
+          {/* Protected Main Routes */}
+          <Route path="/dashboard">
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/suppliers">
+            <ProtectedRoute>
+              <SuppliersPage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/transactions">
+            <ProtectedRoute>
+              <TransactionHistory />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/profile">
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/settings">
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/users/create">
+            <ProtectedRoute>
+              <UserCreationPage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/users">
+            <ProtectedRoute>
+              <UsersPage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/expense">
+            <ProtectedRoute>
+              <ExpensePage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/purchase">
+            <ProtectedRoute>
+              <PurchasePage />
+            </ProtectedRoute>
+          </Route>
+
+          {/* Protected Workflow Routes */}
+          <Route path="/workflow/purchase-management">
+            <ProtectedRoute>
+              <PurchaseManagement />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/workflow/kacha-processing">
+            <ProtectedRoute>
+              <KachaProcessing />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/workflow/draw-process">
+            <ProtectedRoute>
+              <DrawProcess />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/workflow/ready-copper">
+            <ProtectedRoute>
+              <ReadyCopper />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/workflow/pvc-purchase">
+            <ProtectedRoute>
+              <PvcPurchase />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/workflow/production">
+            <ProtectedRoute>
+              <Production />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/workflow/khata-sale">
+            <ProtectedRoute>
+              <KhataSalePage />
+            </ProtectedRoute>
+          </Route>
+
+          {/* 404 Route */}
+          <Route component={NotFound} />
+        </Switch>
+        <Toaster />
+      </TooltipProvider>
+    </ThemeProvider>
   );
 }
 
