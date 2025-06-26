@@ -41,7 +41,6 @@ interface StoreState {
   // Auth State
   user: User | null;
   token: string | null;
-  isAuthenticated: boolean;
   authStep: AuthStep;
   authEmail: string | null;
   isOtpVerified: boolean;
@@ -115,7 +114,6 @@ export const useStore = create<StoreState>()(
       theme: getInitialTheme(),
       setTheme: (theme) => {
         set({ theme });
-        // Also update localStorage directly to ensure persistence
         if (typeof window !== 'undefined') {
           localStorage.setItem('copper-theme', theme);
         }
@@ -124,7 +122,6 @@ export const useStore = create<StoreState>()(
       // Auth State
       user: null,
       token: null,
-      isAuthenticated: false,
       authStep: 'login',
       authEmail: null,
       isOtpVerified: false,
@@ -139,22 +136,26 @@ export const useStore = create<StoreState>()(
       settings: defaultSettings,
 
       // Auth Actions
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      setUser: (user) => set({ user }),
       setToken: (token) => set({ token }),
       setAuthStep: (step) => set({ authStep: step }),
       setAuthEmail: (email) => set({ authEmail: email }),
       setIsOtpVerified: (verified) => set({ isOtpVerified: verified }),
       setAuthLoading: (loading) => set({ authLoading: loading }),
       setAuthError: (error) => set({ authError: error }),
-      logout: () => set({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        authStep: 'login',
-        authEmail: null,
-        isOtpVerified: false,
-        authError: null,
-      }),
+      logout: () => {
+        set({
+          user: null,
+          token: null,
+          authStep: 'login',
+          authEmail: null,
+          isOtpVerified: false,
+          authError: null,
+        });
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('copper-storage');
+        }
+      },
       resetAuth: () => set({
         authStep: 'login',
         authEmail: null,

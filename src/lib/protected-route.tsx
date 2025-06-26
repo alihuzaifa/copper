@@ -7,9 +7,10 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const isAuthenticated = useStore((state) => state.isAuthenticated);
+  const token = useStore((state) => state.token);
+  const user = useStore((state) => state.user);
 
-  if (!isAuthenticated) {
+  if (!token || !user) {
     return <Redirect to="/login" />;
   }
 

@@ -3,25 +3,41 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
-  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import { Eye, Plus } from "lucide-react";
+import { Eye, Plus, Loader2 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { request } from "@/lib/api-client";
+import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-// Define a local Expense type
-export type Expense = {
+// Define types
+export type NewExpense = {
   name: string;
   amount: number;
   date: Date;
 };
+
+export type Expense = NewExpense & {
+  id: string;
+};
+
+interface ExpenseResponse {
+  success: boolean;
+  message: string;
+  data: Expense;
+}
+
+interface ExpensesResponse {
+  success: boolean;
+  message: string;
+  data: Expense[];
+}
 
 const expenseSchema = z.object({
   name: z.string().min(1, "Expense name is required"),
@@ -34,8 +50,15 @@ const expenseSchema = z.object({
   date: z.date(),
 });
 
+// Form types
+type ExpenseFormData = {
+  name: string;
+  amount: string;  // amount is string in form, converted to number on submit
+  date: Date;
+};
+
 function ExpenseForm({ onSubmit, onCancel, defaultDate, defaultValues }: {
-  onSubmit: (data: Expense) => void;
+  onSubmit: (data: NewExpense) => void;
   onCancel: () => void;
   defaultDate: Date;
   defaultValues?: Expense;
@@ -47,7 +70,7 @@ function ExpenseForm({ onSubmit, onCancel, defaultDate, defaultValues }: {
     formState: { errors, touchedFields },
     setValue,
     watch,
-  } = useForm({
+  } = useForm<ExpenseFormData>({
     resolver: zodResolver(expenseSchema),
     defaultValues: defaultValues ? {
       name: defaultValues.name,
@@ -130,11 +153,102 @@ function ExpenseForm({ onSubmit, onCancel, defaultDate, defaultValues }: {
 }
 
 const ExpensePage = () => {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [viewDate, setViewDate] = useState<Date | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editExpense, setEditExpense] = useState<Expense | undefined>(undefined);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch expenses
+  const { data: expensesResponse, isLoading: isLoadingExpenses } = useQuery<ExpensesResponse>({
+    queryKey: ['expenses'],
+    queryFn: () => request({
+      url: '/expenses',
+      method: 'GET'
+    })
+  });
+
+  const expenses = expensesResponse?.data || [];
+
+  // Create expense mutation
+  const createExpenseMutation = useMutation({
+    mutationFn: (data: NewExpense) => 
+      request<NewExpense, ExpenseResponse>({
+        url: '/expenses',
+        method: 'POST',
+        data
+      }),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast({
+        title: "Success",
+        description: response.message || "Expense created successfully",
+      });
+      setFormOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to create expense",
+      });
+    }
+  });
+
+  // Update expense mutation
+  const updateExpenseMutation = useMutation({
+    mutationFn: (data: Expense) => 
+      request<NewExpense, ExpenseResponse>({
+        url: `/expenses/${data.id}`,
+        method: 'PUT',
+        data: {
+          name: data.name,
+          amount: data.amount,
+          date: data.date
+        }
+      }),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast({
+        title: "Success",
+        description: response.message || "Expense updated successfully",
+      });
+      setFormOpen(false);
+      setEditExpense(undefined);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update expense",
+      });
+    }
+  });
+
+  // Delete expense mutation
+  const deleteExpenseMutation = useMutation({
+    mutationFn: (id: string) => 
+      request<void, { success: boolean; message: string }>({
+        url: `/expenses/${id}`,
+        method: 'DELETE'
+      }),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast({
+        title: "Success",
+        description: response.message || "Expense deleted successfully",
+      });
+      setModalOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to delete expense",
+      });
+    }
+  });
 
   // Group expenses by date (ISO string)
   const grouped = expenses.reduce((acc: Record<string, Expense[]>, exp) => {
@@ -155,19 +269,27 @@ const ExpensePage = () => {
 
   // Delete logic
   const handleDelete = (expense: Expense) => {
-    setExpenses((prev) => prev.filter((e) => e !== expense));
+    deleteExpenseMutation.mutate(expense.id);
   };
 
   // Save logic for add/edit
-  const handleSave = (data: Expense) => {
+  const handleSave = (data: NewExpense) => {
     if (editExpense) {
-      setExpenses((prev) => prev.map((e) => (e === editExpense ? data : e)));
-      setEditExpense(undefined);
+      updateExpenseMutation.mutate({ ...data, id: editExpense.id });
     } else {
-      setExpenses((prev) => [...prev, data]);
+      createExpenseMutation.mutate(data);
     }
-    setFormOpen(false);
   };
+
+  if (isLoadingExpenses) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

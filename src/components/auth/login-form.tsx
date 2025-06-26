@@ -83,8 +83,6 @@ export function LoginForm() {
           password: data.password
         }
       });
-
-      console.log("response", response);
       
       if (response.success) {
         const apiUser = response.data.user;
@@ -97,8 +95,9 @@ export function LoginForm() {
           role: apiUser.role
         };
         
-        setUser(userData);
+        // Update auth state
         setToken(response.data.token);
+        setUser(userData);
         
         // Show success toast
         toast({
