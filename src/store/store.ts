@@ -99,7 +99,7 @@ const getInitialTheme = (): Theme => {
     if (savedTheme === 'light' || savedTheme === 'dark') {
       return savedTheme;
     }
-    
+
     // If no saved theme, use system preference
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       return 'dark';
@@ -146,9 +146,9 @@ export const useStore = create<StoreState>()(
       setIsOtpVerified: (verified) => set({ isOtpVerified: verified }),
       setAuthLoading: (loading) => set({ authLoading: loading }),
       setAuthError: (error) => set({ authError: error }),
-      logout: () => set({ 
-        user: null, 
-        token: null, 
+      logout: () => set({
+        user: null,
+        token: null,
         isAuthenticated: false,
         authStep: 'login',
         authEmail: null,
@@ -164,13 +164,13 @@ export const useStore = create<StoreState>()(
 
       // Workflow Actions
       setCurrentStage: (stage) => set({ currentStage: stage }),
-      addWorkflowItem: (item) => set((state) => ({ 
-        workflowItems: [...state.workflowItems, item] 
+      addWorkflowItem: (item) => set((state) => ({
+        workflowItems: [...state.workflowItems, item]
       })),
       updateWorkflowItem: (id, updates) => set((state) => ({
         workflowItems: state.workflowItems.map((item) =>
-          item.id === id 
-            ? { ...item, ...updates, updatedAt: new Date().toISOString() } 
+          item.id === id
+            ? { ...item, ...updates, updatedAt: new Date().toISOString() }
             : item
         ),
       })),

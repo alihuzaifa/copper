@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
-import { apiService } from "@/lib/api-service";
+import { request } from "@/lib/api-client";
 import { useStore } from "@/store/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -26,10 +27,23 @@ const signupSchema = z.object({
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
+interface SignupResponse {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  token: string;
+}
+
 export function SignupForm() {
   const [, navigate] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  const setUser = useStore((state) => state.setUser);
+  const setToken = useStore((state) => state.setToken);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -44,13 +58,41 @@ export function SignupForm() {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Call signup API
-      await apiService.auth.signup(data);
-      
-      // If successful, navigate to dashboard
-      navigate("/dashboard");
+
+      // Call signup API for super admin
+      const response = await request<SignupFormValues, SignupResponse>({
+        url: '/users/super-admin',
+        method: 'POST',
+        data: {
+          name: data.name,
+          email: data.email,
+          password: data.password
+        }
+      });
+      console.log("response", response);
+
+      // // Update store with user and token
+      // setUser(response.user);
+      // setToken(response.token);
+
+      // // Show success toast
+      // toast({
+      //   title: "Account created successfully",
+      //   description: "Welcome to the dashboard!",
+      //   duration: 5000,
+      // });
+
+      // // Navigate to dashboard
+      // navigate("/dashboard");
     } catch (err: any) {
+      // Show error toast
+      toast({
+        variant: "destructive",
+        title: "Error creating account",
+        description: err.message || 'Something went wrong during signup',
+        duration: 5000,
+      });
+
       setError(err.message || 'Something went wrong during signup');
     } finally {
       setIsLoading(false);
@@ -131,10 +173,10 @@ export function SignupForm() {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating account...
+                Creating super admin account...
               </>
             ) : (
-              "Create account"
+              "Create super admin account"
             )}
           </Button>
 

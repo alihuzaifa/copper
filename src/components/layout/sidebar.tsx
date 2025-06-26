@@ -17,8 +17,15 @@ import {
   BarChart2, 
   UserCog, 
   Settings, 
-  LogOut 
+  LogOut,
+  ChevronDown,
+  CircleDollarSign,
+  Home,
+  Workflow,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useStore } from "@/store/store";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -43,14 +50,12 @@ const iconMap: Record<string, LucideIcon> = {
 
 export function Sidebar({ isOpen }: SidebarProps) {
   const [, navigate] = useLocation();
+  const user = useStore((state) => state.user);
+  const logout = useStore((state) => state.logout);
 
-  const handleLogout = async () => {
-    try {
-      await apiService.auth.logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
   };
   
   return (

@@ -70,8 +70,8 @@ export async function request<TData, TResponse>({
     data
   };
 
-  const response = await axiosInstance.request<TData, AxiosResponse<TResponse>>(config);
-  return response.data;
+  // The response interceptor already returns response.data
+  return axiosInstance.request<TData, TResponse>(config);
 }
 
 export type { RequestConfig, HttpMethod, ApiError };
