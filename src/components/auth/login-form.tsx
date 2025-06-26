@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
 import { apiService } from "@/lib/api-service";
+import { useStore } from "@/store/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,6 +29,7 @@ export function LoginForm() {
   const [, navigate] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { setUser, setToken } = useStore();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -43,7 +45,11 @@ export function LoginForm() {
       setError(null);
       
       // Call login API
-      await apiService.auth.login(data);
+      const response = await apiService.auth.login(data);
+      
+      // Set auth state in store
+      setUser(response.data.user);
+      setToken(response.data.token);
       
       // If successful, navigate to dashboard
       navigate("/dashboard");
