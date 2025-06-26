@@ -27,4 +27,16 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
   },
+  server: {
+    hmr: {
+      overlay: true
+    },
+    watch: {
+      usePolling: true,
+      interval: 100
+    }
+  },
+  optimizeDeps: {
+    force: true
+  }
 });

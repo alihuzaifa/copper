@@ -1,6 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { useAuth } from "@/hooks/use-auth";
+import { useStore } from "@/store/store";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -64,7 +64,7 @@ const securityFormSchema = z.object({
 });
 
 const SettingsPage = () => {
-  const { user } = useAuth();
+  const user = useStore(state => state.user);
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("account");
 

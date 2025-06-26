@@ -1,11 +1,17 @@
-import { Route, RouteProps } from "wouter";
+import { ReactNode } from "react";
+import { Redirect } from "wouter";
+import { useStore } from "@/store/store";
 
-// For mock data demonstration purposes, we're bypassing real authentication
-export function ProtectedRoute({
-  path,
-  component,
-}: RouteProps) {
-  // In a mock data scenario, we'll always render the component
-  // without checking authentication
-  return <Route path={path} component={component} />;
+interface ProtectedRouteProps {
+  children: ReactNode;
+}
+
+export function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const isAuthenticated = useStore((state) => state.isAuthenticated);
+
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
+  }
+
+  return <>{children}</>;
 }

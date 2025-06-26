@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
+import { apiService } from "@/lib/api-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -25,7 +26,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const [, navigate] = useLocation();
-  const { loginMutation } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -37,18 +39,26 @@ export function LoginForm() {
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
-      await loginMutation.mutateAsync(data);
+      setIsLoading(true);
+      setError(null);
+      
+      // Call login API
+      await apiService.auth.login(data);
+      
+      // If successful, navigate to dashboard
       navigate("/dashboard");
-    } catch (error) {
-      // Error is handled by the mutation
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong during login');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="space-y-6 w-full max-w-md mx-auto">
-      {loginMutation.error && (
+      {error && (
         <Alert variant="destructive">
-          <AlertDescription>{loginMutation.error.message}</AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
@@ -65,7 +75,7 @@ export function LoginForm() {
                     placeholder="Enter your email"
                     type="email"
                     autoComplete="email"
-                    disabled={loginMutation.isPending}
+                    disabled={isLoading}
                     {...field}
                   />
                 </FormControl>
@@ -85,7 +95,7 @@ export function LoginForm() {
                     placeholder="Enter your password"
                     type="password"
                     autoComplete="current-password"
-                    disabled={loginMutation.isPending}
+                    disabled={isLoading}
                     {...field}
                   />
                 </FormControl>
@@ -94,25 +104,14 @@ export function LoginForm() {
             )}
           />
 
-          <div className="flex items-center justify-end">
-            <Button
-              type="button"
-              variant="link"
-              className="px-0"
-              onClick={() => navigate("/forgot-password")}
-            >
-              Forgot password?
-            </Button>
-          </div>
-
-          <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
-            {loginMutation.isPending ? (
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Signing in...
+                Logging in...
               </>
             ) : (
-              "Sign in"
+              "Log in"
             )}
           </Button>
 

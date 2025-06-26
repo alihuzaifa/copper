@@ -2,7 +2,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
+import { apiService } from "@/lib/api-service";
+import { useStore } from "@/store/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -26,7 +28,8 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 
 export function SignupForm() {
   const [, navigate] = useLocation();
-  const { signupMutation } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -39,18 +42,26 @@ export function SignupForm() {
 
   const onSubmit = async (data: SignupFormValues) => {
     try {
-      await signupMutation.mutateAsync(data);
+      setIsLoading(true);
+      setError(null);
+      
+      // Call signup API
+      await apiService.auth.signup(data);
+      
+      // If successful, navigate to dashboard
       navigate("/dashboard");
-    } catch (error) {
-      // Error is handled by the mutation
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong during signup');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="space-y-6 w-full max-w-md mx-auto">
-      {signupMutation.error && (
+      {error && (
         <Alert variant="destructive">
-          <AlertDescription>{signupMutation.error.message}</AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
@@ -67,7 +78,7 @@ export function SignupForm() {
                     placeholder="Enter your name"
                     type="text"
                     autoComplete="name"
-                    disabled={signupMutation.isPending}
+                    disabled={isLoading}
                     {...field}
                   />
                 </FormControl>
@@ -87,7 +98,7 @@ export function SignupForm() {
                     placeholder="Enter your email"
                     type="email"
                     autoComplete="email"
-                    disabled={signupMutation.isPending}
+                    disabled={isLoading}
                     {...field}
                   />
                 </FormControl>
@@ -107,7 +118,7 @@ export function SignupForm() {
                     placeholder="Enter your password"
                     type="password"
                     autoComplete="new-password"
-                    disabled={signupMutation.isPending}
+                    disabled={isLoading}
                     {...field}
                   />
                 </FormControl>
@@ -116,8 +127,8 @@ export function SignupForm() {
             )}
           />
 
-          <Button type="submit" className="w-full" disabled={signupMutation.isPending}>
-            {signupMutation.isPending ? (
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Creating account...

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { LucideIcon } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { apiService } from "@/lib/api-service";
 import { WORKFLOW_STAGES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { 
@@ -41,12 +41,16 @@ const iconMap: Record<string, LucideIcon> = {
   "logout": LogOut,
 };
 
-const Sidebar = ({ isOpen }: SidebarProps) => {
-  const [location] = useLocation();
-  const { user, logoutMutation } = useAuth();
-  
-  const handleLogout = () => {
-    logoutMutation.mutate();
+export function Sidebar({ isOpen }: SidebarProps) {
+  const [, navigate] = useLocation();
+
+  const handleLogout = async () => {
+    try {
+      await apiService.auth.logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
   
   return (
@@ -216,6 +220,6 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
       </nav>
     </aside>
   );
-};
+}
 
 export default Sidebar;

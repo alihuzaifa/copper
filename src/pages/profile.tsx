@@ -1,5 +1,5 @@
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { useAuth } from "@/hooks/use-auth";
+import { useStore } from "@/store/store";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   Card, 
@@ -9,8 +9,18 @@ import {
 } from "@/components/ui/card";
 import { format } from "date-fns";
 
+// Define the User type
+interface User {
+  name?: string;
+  email: string;
+  username?: string;
+  createdAt?: string;
+  role?: string;
+  isVerified?: boolean;
+}
+
 const ProfilePage = () => {
-  const { user } = useAuth();
+  const user = useStore<User | null>(state => state.user);
 
   if (!user) {
     return null;
@@ -25,7 +35,14 @@ const ProfilePage = () => {
       .toUpperCase();
   };
 
-  const initials = user.name ? getInitials(user.name) : user.username.substring(0, 2).toUpperCase();
+  // Get display name and initials safely
+  const displayName = user.name || user.username || user.email.split('@')[0];
+  const initials = user.name ? 
+    getInitials(user.name) : 
+    (user.username ? 
+      user.username.substring(0, 2).toUpperCase() : 
+      user.email.substring(0, 2).toUpperCase()
+    );
 
   return (
     <DashboardLayout>
@@ -43,7 +60,7 @@ const ProfilePage = () => {
               <AvatarFallback className="text-lg">{initials}</AvatarFallback>
             </Avatar>
             <div>
-              <CardTitle className="text-xl font-sans">{user.name || user.username}</CardTitle>
+              <CardTitle className="text-xl font-sans">{displayName}</CardTitle>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {user.email}
               </p>
@@ -54,10 +71,12 @@ const ProfilePage = () => {
               <div>
                 <h3 className="font-medium mb-2">Account Information</h3>
                 <div className="space-y-2">
-                  <div className="flex justify-between border-b border-gray-100 dark:border-gray-800 pb-2">
-                    <span className="text-gray-500 dark:text-gray-400">Username</span>
-                    <span>{user.username}</span>
-                  </div>
+                  {user.username && (
+                    <div className="flex justify-between border-b border-gray-100 dark:border-gray-800 pb-2">
+                      <span className="text-gray-500 dark:text-gray-400">Username</span>
+                      <span>{user.username}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-b border-gray-100 dark:border-gray-800 pb-2">
                     <span className="text-gray-500 dark:text-gray-400">Email</span>
                     <span>{user.email}</span>
