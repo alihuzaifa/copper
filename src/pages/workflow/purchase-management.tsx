@@ -201,11 +201,10 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
             <FormItem>
               <FormLabel>Material Name</FormLabel>
               <FormControl>
-                <input
+                <Input
                   {...field}
                   placeholder="Enter material name"
                   disabled={isLoading}
-                  className="w-full px-3 py-2 border rounded-md"
                 />
               </FormControl>
               <FormMessage />
@@ -220,12 +219,11 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
             <FormItem>
               <FormLabel>Weight</FormLabel>
               <FormControl>
-                <input
+                <Input
                   {...field}
                   type="number"
                   placeholder="Enter weight"
                   disabled={isLoading}
-                  className="w-full px-3 py-2 border rounded-md"
                 />
               </FormControl>
               <FormMessage />
@@ -240,12 +238,11 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
             <FormItem>
               <FormLabel>Price per Unit</FormLabel>
               <FormControl>
-                <input
+                <Input
                   {...field}
                   type="number"
                   placeholder="Enter price per unit"
                   disabled={isLoading}
-                  className="w-full px-3 py-2 border rounded-md"
                 />
               </FormControl>
               <FormMessage />

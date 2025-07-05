@@ -401,7 +401,7 @@ const AddKachaProcessing = () => {
           <DialogHeader>
             <DialogTitle>History</DialogTitle>
           </DialogHeader>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-80 overflow-y-auto scrollbar-none">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead>
                 <tr>
