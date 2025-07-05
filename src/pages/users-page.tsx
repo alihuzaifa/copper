@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -36,22 +36,77 @@ import {
 import {
   Plus,
   MoreHorizontal,
-  Pencil,
   Trash2,
   Search,
   Filter,
+  Loader2,
+  Power,
 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useToast } from "@/hooks/use-toast";
+import { request } from "@/lib/api-client";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store/store";
 
-const initialCategories = [
-  { id: 1, name: "Supplier" },
-  { id: 2, name: "User" },
-  { id: 3, name: "Khata User" },
-  { id: 4, name: "Vendor" },
-  { id: 5, name: "Darwer" },
-];
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface User {
+  _id: string;
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
+  categoryId: number;
+  status: string;
+  role: string;
+}
+
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
+interface UsersResponse extends ApiResponse<User[]> {
+  pagination: PaginationInfo;
+}
+
+interface CategoriesResponse extends ApiResponse<Category[]> {}
+
+interface CreateUserResponse extends ApiResponse<User> {}
+
+interface DeleteUserResponse extends ApiResponse<null> {
+  message: string;
+}
+
+interface ToggleStatusResponse extends ApiResponse<{
+  id: string;
+  status: string;
+}> {
+  message: string;
+}
+
+interface CreateUserData {
+  name?: string;
+  phoneNumber?: string;
+  categoryId: number;
+  email?: string;
+  password?: string;
+  status: string;
+}
 
 const userSchema = z
   .object({
@@ -84,7 +139,24 @@ const userSchema = z
           message: "Password is required",
         });
       }
+    } else if (data.categoryId === "6") {
+      // 'Kacha User' category
+      if (!data.name || data.name.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["name"],
+          message: "User name is required",
+        });
+      }
+      if (!data.phone || data.phone.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["phone"],
+          message: "Phone number is required",
+        });
+      }
     } else {
+      // Other categories
       if (!data.name || data.name.trim() === "") {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -102,7 +174,7 @@ const userSchema = z
     }
   });
 
-function UserForm({ user, categories, onSubmit, onCancel }: any) {
+function UserForm({ categories, onSubmit, onCancel }: any) {
   const {
     register,
     handleSubmit,
@@ -112,10 +184,10 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
   } = useForm({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      name: user?.name || "",
-      phone: user?.phone || "",
-      categoryId: user?.categoryId ? user.categoryId.toString() : "",
-      email: user?.email || "",
+      name: "",
+      phone: "",
+      categoryId: "",
+      email: "",
       password: "",
     },
     mode: "onTouched",
@@ -134,13 +206,12 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
     <form
       onSubmit={handleSubmit((data) => {
         onSubmit({
-          id: user?.id,
           name: data.name,
-          phone: data.phone,
+          phoneNumber: data.phone,
           categoryId: parseInt(data.categoryId),
           email: data.email,
           password: data.password,
-          isActive: user?.isActive ?? true,
+          status: "active",
         });
       })}
       className="space-y-4"
@@ -174,7 +245,7 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((category: any) => (
+                  {categories.map((category: Category) => (
                     <SelectItem
                       key={category.id}
                       value={category.id.toString()}
@@ -295,51 +366,169 @@ function UserForm({ user, categories, onSubmit, onCancel }: any) {
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit">{user ? "Update User" : "Add User"}</Button>
+        <Button type="submit">Add User</Button>
       </div>
     </form>
   );
 }
 
 const UsersPage = () => {
-  const [users, setUsers] = useState<any[]>([]);
-  const [categories] = useState(initialCategories);
+  const { toast } = useToast();
+  const [users, setUsers] = useState<User[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
-  const [editUser, setEditUser] = useState<any>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-
-  const handleAdd = (data: any) => {
-    setUsers((prev) => [...prev, { ...data, id: Date.now(), isActive: true }]);
-    setModalOpen(false);
-  };
-
-  const handleEdit = (data: any) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === data.id ? { ...u, ...data } : u))
-    );
-    setModalOpen(false);
-    setEditUser(null);
-  };
-
-  const handleDelete = () => {
-    setUsers((prev) => prev.filter((u: any) => u.id !== selectedUser?.id));
-    setDeleteDialogOpen(false);
-    setSelectedUser(null);
-  };
-
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.phone && user.phone.includes(searchTerm));
-    const matchesCategory =
-      categoryFilter === "all" ||
-      user.categoryId?.toString() === categoryFilter;
-    return matchesSearch && matchesCategory;
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+    hasNextPage: false,
+    hasPrevPage: false,
   });
+
+  // Get auth state from Redux
+  const token = useSelector((state: RootState) => state.auth.token);
+
+  // Fetch categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await request<null, CategoriesResponse>({
+          url: '/users/categories',
+          method: 'GET'
+        });
+
+        if (response.success) {
+          setCategories(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch categories",
+        });
+      }
+    };
+
+    fetchCategories();
+  }, [toast]);
+
+  // Fetch users
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const queryParams = new URLSearchParams({
+        page: pagination.currentPage.toString(),
+        limit: pagination.itemsPerPage.toString(),
+        ...(searchTerm && { search: searchTerm }),
+        ...(categoryFilter !== "all" && { categoryId: categoryFilter }),
+      });
+
+      const response = await request<null, UsersResponse>({
+        url: `/users?${queryParams}`,
+        method: 'GET'
+      });
+
+      if (response.success) {
+        setUsers(response.data);
+        setPagination(response.pagination);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch users",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, [pagination.currentPage, searchTerm, categoryFilter, toast]);
+
+  const handleAdd = async (data: CreateUserData) => {
+    try {
+      const response = await request<CreateUserData, CreateUserResponse>({
+        url: '/users',
+        method: 'POST',
+        data
+      });
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "User created successfully",
+        });
+        setModalOpen(false);
+        fetchUsers(); // Refresh the users list
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to create user",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const response = await request<null, DeleteUserResponse>({
+        url: `/users/${selectedUser._id}`,
+        method: 'DELETE'
+      });
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.message || "User deleted successfully",
+        });
+        setDeleteDialogOpen(false);
+        setSelectedUser(null);
+        fetchUsers(); // Refresh the users list
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to delete user",
+      });
+    }
+  };
+
+  const handleToggleStatus = async (user: User) => {
+    try {
+      const response = await request<null, ToggleStatusResponse>({
+        url: `/users/${user._id}/toggle-status`,
+        method: 'PATCH'
+      });
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.message,
+        });
+        fetchUsers(); // Refresh the users list
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to toggle user status",
+      });
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -347,7 +536,7 @@ const UsersPage = () => {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold font-sans">User Management</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Add, edit, and manage your users
+            Add and manage your users
           </p>
         </div>
         <Card>
@@ -357,13 +546,11 @@ const UsersPage = () => {
               open={modalOpen}
               onOpenChange={(open) => {
                 setModalOpen(open);
-                if (!open) setEditUser(null);
               }}
             >
               <DialogTrigger asChild>
                 <Button
                   onClick={() => {
-                    setEditUser(null);
                     setModalOpen(true);
                   }}
                 >
@@ -373,17 +560,13 @@ const UsersPage = () => {
               </DialogTrigger>
               <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                  <DialogTitle>
-                    {editUser ? "Edit User" : "Add User"}
-                  </DialogTitle>
+                  <DialogTitle>Add User</DialogTitle>
                 </DialogHeader>
                 <UserForm
-                  user={editUser}
                   categories={categories}
-                  onSubmit={editUser ? handleEdit : handleAdd}
+                  onSubmit={handleAdd}
                   onCancel={() => {
                     setModalOpen(false);
-                    setEditUser(null);
                   }}
                 />
               </DialogContent>
@@ -430,7 +613,7 @@ const UsersPage = () => {
                 <thead>
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Name
+                      Name/Email
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                       Phone
@@ -447,61 +630,70 @@ const UsersPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr
-                      key={user.id}
-                      className="border-b border-gray-200 dark:border-gray-700"
-                    >
-                      <td className="px-4 py-2">{user.name}</td>
-                      <td className="px-4 py-2">{user.phone || "N/A"}</td>
-                      <td className="px-4 py-2">
-                        {categories.find((c) => c.id === user.categoryId)
-                          ?.name || "N/A"}
-                      </td>
-                      <td className="px-4 py-2">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            user.isActive
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-                          }`}
-                        >
-                          {user.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditUser(user);
-                                setModalOpen(true);
-                              }}
-                            >
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setDeleteDialogOpen(true);
-                              }}
-                              className="text-red-600 dark:text-red-400"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-4">
+                        <div className="flex justify-center items-center">
+                          <Loader2 className="h-6 w-6 animate-spin" />
+                          <span className="ml-2">Loading users...</span>
+                        </div>
                       </td>
                     </tr>
-                  ))}
-                  {filteredUsers.length === 0 && (
+                  ) : users.length > 0 ? (
+                    users.map((user) => (
+                      <tr
+                        key={user._id}
+                        className="border-b border-gray-200 dark:border-gray-700"
+                      >
+                        <td className="px-4 py-2">
+                          {user.categoryId === 2 ? user.email : user.name}
+                        </td>
+                        <td className="px-4 py-2">{user.phoneNumber || "N/A"}</td>
+                        <td className="px-4 py-2">
+                          {categories.find((c) => c.id === user.categoryId)
+                            ?.name || "N/A"}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              user.status === "active"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+                            }`}
+                          >
+                            {user.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleToggleStatus(user)}
+                              >
+                                <Power className="mr-2 h-4 w-4" />
+                                {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="text-red-600 dark:text-red-400"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
                     <tr>
                       <td
                         colSpan={5}
@@ -514,15 +706,45 @@ const UsersPage = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {users.length > 0 && (
+              <div className="mt-4 flex justify-between items-center">
+                <div className="text-sm text-gray-500">
+                  Showing {(pagination.currentPage - 1) * pagination.itemsPerPage + 1} to{" "}
+                  {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{" "}
+                  {pagination.totalItems} users
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!pagination.hasPrevPage}
+                    onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!pagination.hasNextPage}
+                    onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
+
         {/* Delete confirmation dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete the user "{selectedUser?.name}".
+                This will permanently delete the user "{selectedUser?.name || selectedUser?.email}".
                 This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>

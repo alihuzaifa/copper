@@ -2,8 +2,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
+import { useDispatch, useSelector } from "react-redux";
 import { request } from "@/lib/api-client";
-import { useStore, User } from "@/store/store";
+import { setUser, setToken, setAuthLoading, setAuthError, User } from "@/store/slices/authSlice";
+import type { RootState } from "@/store/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,7 +18,6 @@ import {
 } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -55,11 +56,12 @@ interface LoginResponse {
 
 export function LoginForm() {
   const [, navigate] = useLocation();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const setUser = useStore((state) => state.setUser);
-  const setToken = useStore((state) => state.setToken);
+  const dispatch = useDispatch();
+  
+  // Get auth state from Redux
+  const isLoading = useSelector((state: RootState) => state.auth.authLoading);
+  const error = useSelector((state: RootState) => state.auth.authError);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -71,8 +73,8 @@ export function LoginForm() {
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
-      setIsLoading(true);
-      setError(null);
+      dispatch(setAuthLoading(true));
+      dispatch(setAuthError(null));
       
       // Call login API
       const response = await request<LoginFormValues, LoginResponse>({
@@ -95,9 +97,10 @@ export function LoginForm() {
           role: apiUser.role
         };
         
-        // Update auth state
-        setToken(response.data.token);
-        setUser(userData);
+        // Store raw token without Bearer prefix
+        const token = response.data.token;
+        dispatch(setToken(token.replace('Bearer ', '')));
+        dispatch(setUser(userData));
         
         // Show success toast
         toast({
@@ -120,9 +123,9 @@ export function LoginForm() {
         duration: 5000,
       });
 
-      setError(err.message || 'Something went wrong during login');
+      dispatch(setAuthError(err.message || 'Something went wrong during login'));
     } finally {
-      setIsLoading(false);
+      dispatch(setAuthLoading(false));
     }
   };
 

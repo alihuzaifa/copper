@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -7,13 +7,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,225 +31,263 @@ import {
 } from "@/components/ui/select";
 import {
   Plus,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
   Search,
   Eye,
+  Loader2,
 } from "lucide-react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import * as z from "zod";
 import dayjs from "dayjs";
 import WorkflowStages from "@/components/layout/workflow-stages";
+import { useToast } from "@/hooks/use-toast";
+import { request } from "@/lib/api-client";
+import {
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 
-const initialSuppliers = [
-  { id: 1, name: "ABC Traders" },
-  { id: 2, name: "XYZ Suppliers" },
-  { id: 3, name: "Global Materials" },
-];
+// API Types
+interface Supplier {
+  _id: string;
+  name: string;
+  phoneNumber?: string;
+}
+
+interface HistoryEntry {
+  action: 'created' | 'added' | 'updated';
+  quantity: number;
+  date: string;
+  by: string;
+  notes: string;
+}
+
+interface Purchase {
+  _id: string;
+  supplierId: {
+    _id: string;
+    name: string;
+    phoneNumber?: string;
+  };
+  materialName: string;
+  weight: number;
+  pricePerUnit: number;
+  totalAmount: number;
+  status: 'pending' | 'completed' | 'cancelled';
+  paymentStatus: 'pending' | 'partial' | 'paid';
+  paidAmount: number;
+  remainingAmount: number;
+  notes?: string;
+  purchaseDate?: string;
+  deliveryDate?: string;
+  shopId: string;
+  createdBy: {
+    _id: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  history: HistoryEntry[];
+}
+
+interface GetPurchasesResponse {
+  success: boolean;
+  message?: string;
+  data: Purchase[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+interface GetSuppliersDropdownResponse {
+  success: boolean;
+  data: Supplier[];
+}
+
+interface CreatePurchaseResponse {
+  success: boolean;
+  message: string;
+  data: Purchase;
+}
+
+interface UpdatePurchaseResponse {
+  success: boolean;
+  message: string;
+  data: Purchase;
+}
 
 const purchaseSchema = z.object({
   supplierId: z.string().min(1, "Supplier is required"),
-  materialName: z.string().min(1, "Material Name is required"),
+  materialName: z.string().min(1, "Material name is required"),
   weight: z.coerce.number().positive("Weight must be positive"),
   pricePerUnit: z.coerce.number().positive("Price per unit must be positive"),
 });
 
-function PurchaseForm({ purchase, suppliers, onSubmit, onCancel }: any) {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, touchedFields },
-    watch,
-    control,
-  } = useForm({
+type PurchaseFormValues = z.infer<typeof purchaseSchema>;
+
+interface PurchaseFormProps {
+  purchase?: Purchase;
+  suppliers: Supplier[];
+  onSubmit: (data: PurchaseFormValues) => void;
+  onCancel: () => void;
+  isLoading?: boolean;
+}
+
+const PurchaseForm: React.FC<PurchaseFormProps> = ({
+  purchase,
+  suppliers,
+  onSubmit,
+  onCancel,
+  isLoading = false,
+}) => {
+  const methods = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseSchema),
     defaultValues: {
-      supplierId: purchase?.supplierId ? purchase.supplierId.toString() : "",
+      supplierId: purchase?.supplierId._id || "",
       materialName: purchase?.materialName || "",
-      weight: purchase?.weight || "",
-      pricePerUnit: purchase?.pricePerUnit || "",
+      weight: purchase?.weight || 0,
+      pricePerUnit: purchase?.pricePerUnit || 0,
     },
-    mode: "onTouched",
   });
 
-  const weight = watch("weight");
-  const pricePerUnit = watch("pricePerUnit");
-  const totalAmount =
-    weight && pricePerUnit ? Number(weight) * Number(pricePerUnit) : 0;
-
-  const inputStyles = {
-    base: "border px-3 py-2 rounded-md outline-none transition-colors w-full",
-    valid: "border-green-500",
-    invalid: "border-red-500",
-    default: "border-gray-300 dark:border-gray-700",
-  };
-
   return (
-    <form
-      onSubmit={handleSubmit((data) => {
-        onSubmit({
-          id: purchase?.id,
-          supplierId: parseInt(data.supplierId),
-          materialName: data.materialName,
-          weight: Number(data.weight),
-          pricePerUnit: Number(data.pricePerUnit),
-          totalAmount: Number(data.weight) * Number(data.pricePerUnit),
-          status: "pending",
-        });
-      })}
-      className="space-y-4"
-    >
-      <div>
-        <label className="block mb-1 font-medium">Supplier</label>
-        <Controller
+    <FormProvider {...methods}>
+      <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={methods.control}
           name="supplierId"
-          control={control}
-          render={({ field, fieldState }) => (
-            <>
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Supplier</FormLabel>
               <Select
-                value={field.value}
-                onValueChange={(v) => {
-                  field.onChange(v);
-                  field.onBlur();
-                }}
+                onValueChange={field.onChange}
+                defaultValue={field.value}
+                disabled={isLoading}
               >
-                <SelectTrigger
-                  className={
-                    inputStyles.base +
-                    " " +
-                    (fieldState.invalid
-                      ? inputStyles.invalid
-                      : fieldState.isTouched && field.value
-                      ? inputStyles.valid
-                      : inputStyles.default) +
-                    " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
-                  }
-                >
-                  <SelectValue placeholder="Select a supplier" />
-                </SelectTrigger>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a supplier" />
+                  </SelectTrigger>
+                </FormControl>
                 <SelectContent>
-                  {suppliers.map((supplier: any) => (
+                  {suppliers.map((supplier) => (
                     <SelectItem
-                      key={supplier.id}
-                      value={supplier.id.toString()}
+                      key={supplier._id}
+                      value={supplier._id}
                     >
                       {supplier.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {fieldState.invalid && (
-                <div className="text-red-600 text-xs mt-1">
-                  {errors.supplierId?.message as string}
-                </div>
-              )}
-            </>
+              <FormMessage />
+            </FormItem>
           )}
         />
-      </div>
-      <div>
-        <label className="block mb-1 font-medium">Material Name</label>
-        <input
-          {...register("materialName")}
-          placeholder="Enter material name"
-          className={
-            inputStyles.base +
-            " " +
-            (touchedFields.materialName
-              ? errors.materialName
-                ? inputStyles.invalid
-                : inputStyles.valid
-              : inputStyles.default) +
-            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
-          }
+
+        <FormField
+          control={methods.control}
+          name="materialName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Material Name</FormLabel>
+              <FormControl>
+                <input
+                  {...field}
+                  placeholder="Enter material name"
+                  disabled={isLoading}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-        {touchedFields.materialName && errors.materialName && (
-          <div className="text-red-600 text-xs mt-1">
-            {errors.materialName.message as string}
-          </div>
-        )}
-      </div>
-      <div>
-        <label className="block mb-1 font-medium">Weight</label>
-        <input
-          {...register("weight")}
-          placeholder="Enter weight"
-          type="number"
-          className={
-            inputStyles.base +
-            " " +
-            (touchedFields.weight
-              ? errors.weight
-                ? inputStyles.invalid
-                : inputStyles.valid
-              : inputStyles.default) +
-            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
-          }
+
+        <FormField
+          control={methods.control}
+          name="weight"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Weight</FormLabel>
+              <FormControl>
+                <input
+                  {...field}
+                  type="number"
+                  placeholder="Enter weight"
+                  disabled={isLoading}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-        {touchedFields.weight && errors.weight && (
-          <div className="text-red-600 text-xs mt-1">
-            {errors.weight.message as string}
-          </div>
-        )}
-      </div>
-      <div>
-        <label className="block mb-1 font-medium">Price per Unit</label>
-        <input
-          {...register("pricePerUnit")}
-          placeholder="Enter price per unit"
-          type="number"
-          className={
-            inputStyles.base +
-            " " +
-            (touchedFields.pricePerUnit
-              ? errors.pricePerUnit
-                ? inputStyles.invalid
-                : inputStyles.valid
-              : inputStyles.default) +
-            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
-          }
+
+        <FormField
+          control={methods.control}
+          name="pricePerUnit"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Price per Unit</FormLabel>
+              <FormControl>
+                <input
+                  {...field}
+                  type="number"
+                  placeholder="Enter price per unit"
+                  disabled={isLoading}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-        {touchedFields.pricePerUnit && errors.pricePerUnit && (
-          <div className="text-red-600 text-xs mt-1">
-            {errors.pricePerUnit.message as string}
-          </div>
-        )}
-      </div>
-      <div>
-        <label className="block mb-1 font-medium">Total Amount</label>
-        <input
-          value={totalAmount}
-          readOnly
-          className={
-            inputStyles.base +
-            " " +
-            inputStyles.default +
-            " bg-gray-100 dark:bg-gray-800"
-          }
-        />
-      </div>
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">
-          {purchase ? "Update Purchase" : "Add Purchase"}
-        </Button>
-      </div>
-    </form>
+
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Total Amount: {methods.watch("weight") * methods.watch("pricePerUnit")}
+        </div>
+
+        <div className="flex justify-end space-x-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isLoading}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </form>
+    </FormProvider>
   );
-}
+};
 
 const PurchaseManagement = () => {
-  const [purchases, setPurchases] = useState<any[]>([]);
-  const [suppliers] = useState(initialSuppliers);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [editPurchase, setEditPurchase] = useState<any>(null);
+  const [editPurchase, setEditPurchase] = useState<Purchase | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
+  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [formLoading, setFormLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const { toast } = useToast();
 
   // Remove from stock dialog state
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
@@ -262,135 +296,191 @@ const PurchaseManagement = () => {
   const [removeQuantity, setRemoveQuantity] = useState("");
   const [removeError, setRemoveError] = useState("");
 
-  // History state (array of {materialName, supplierId, action, ...})
-  const [history, setHistory] = useState<any[]>([]);
-  // For per-row history modal
+  // History state
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [historyModalMaterial, setHistoryModalMaterial] = useState("");
-  const [historyModalSupplierId, setHistoryModalSupplierId] = useState("");
+
+  // Function to fetch purchases
+  const fetchPurchases = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch purchases
+      const purchasesResponse = await request<void, GetPurchasesResponse>({
+        url: '/purchases',
+        method: 'GET',
+        params: { page, search: searchTerm }
+      });
+
+      if (purchasesResponse.success) {
+        setPurchases(purchasesResponse.data);
+        setTotalPages(purchasesResponse.pagination.totalPages);
+      }
+    } catch (error: any) {
+      console.error('Error fetching purchases:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch purchases",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch purchases and suppliers
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch purchases
+        await fetchPurchases();
+
+        // Fetch suppliers
+        const suppliersResponse = await request<void, GetSuppliersDropdownResponse>({
+          url: '/users/suppliers/all',
+          method: 'GET'
+        });
+
+        if (suppliersResponse.success) {
+          setSuppliers(suppliersResponse.data);
+        }
+      } catch (error: any) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch data",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [page, searchTerm]);
 
   // Add or update purchase
-  const handleAdd = (data: any) => {
-    const supplierId = parseInt(data.supplierId);
-    const materialName = data.materialName.trim();
-    const pricePerUnit = Number(data.pricePerUnit);
-    const weight = Number(data.weight);
-    // Find if exists
-    const idx = purchases.findIndex(
-      (p) =>
-        p.materialName.toLowerCase() === materialName.toLowerCase() &&
-        p.supplierId === supplierId
-    );
-    let newPurchases;
-    let actionQuantity = weight;
-    if (idx !== -1) {
-      // Update existing
-      const updated = { ...purchases[idx] };
-      updated.weight += weight;
-      updated.pricePerUnit = pricePerUnit; // or keep old price if you want
-      updated.totalAmount = updated.weight * updated.pricePerUnit;
-      newPurchases = [...purchases];
-      newPurchases[idx] = updated;
-    } else {
-      // Add new
-      const newPurchase = {
-        id: Date.now(),
-        supplierId,
-        materialName,
-        weight,
-        pricePerUnit,
-        totalAmount: weight * pricePerUnit,
-        status: "pending",
-        date: new Date(),
-      };
-      newPurchases = [...purchases, newPurchase];
+  const handleAdd = async (data: PurchaseFormValues) => {
+    try {
+      setFormLoading(true);
+      
+      const response = await request<any, CreatePurchaseResponse>({
+        url: '/purchases',
+        method: 'POST',
+        data: {
+          supplierId: data.supplierId,
+          materialName: data.materialName.trim(),
+          weight: Number(data.weight),
+          pricePerUnit: Number(data.pricePerUnit),
+          totalAmount: Number(data.weight) * Number(data.pricePerUnit),
+          status: 'pending'
+        }
+      });
+
+      if (response.success) {
+        // Refresh purchases list
+        await fetchPurchases();
+        
+        setModalOpen(false);
+        setEditPurchase(null);
+        toast({
+          title: "Success",
+          description: response.message,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error creating purchase:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create purchase",
+        variant: "destructive",
+      });
+    } finally {
+      setFormLoading(false);
     }
-    setPurchases(newPurchases);
-    setHistory((prev) => [
-      ...prev,
-      {
-        materialName,
-        supplierId,
-        action: "add",
-        actionDate: new Date(),
-        actionQuantity,
-        pricePerUnit,
-      },
-    ]);
-    setModalOpen(false);
   };
 
   // Remove from stock logic
-  const handleRemoveFromStock = () => {
-    setRemoveError("");
-    const supplierId = parseInt(removeSupplierId);
-    const materialName = removeMaterialName.trim();
-    const quantityToRemove = parseFloat(removeQuantity);
-    if (
-      !materialName ||
-      !supplierId ||
-      !quantityToRemove ||
-      quantityToRemove <= 0
-    ) {
-      setRemoveError(
-        "Please select a material, supplier, and enter a valid quantity."
+  const handleRemoveFromStock = async () => {
+    try {
+      setFormLoading(true);
+      setRemoveError("");
+      
+      const supplierId = removeSupplierId;
+      const materialName = removeMaterialName.trim();
+      const quantityToRemove = parseFloat(removeQuantity);
+
+      if (!materialName || !supplierId || !quantityToRemove || quantityToRemove <= 0) {
+        setRemoveError("Please select a material, supplier, and enter a valid quantity.");
+        return;
+      }
+
+      const purchase = purchases.find(
+        (p) => p.materialName.toLowerCase() === materialName.toLowerCase() && 
+              p.supplierId._id === supplierId
       );
-      return;
+
+      if (!purchase) {
+        setRemoveError("Material and supplier not found.");
+        return;
+      }
+
+      if (quantityToRemove > purchase.weight) {
+        setRemoveError("Cannot remove more than available stock for this supplier.");
+        return;
+      }
+
+      const response = await request<any, UpdatePurchaseResponse>({
+        url: `/purchases/${purchase._id}`,
+        method: 'PUT',
+        data: {
+          weight: purchase.weight - quantityToRemove,
+          totalAmount: (purchase.weight - quantityToRemove) * purchase.pricePerUnit
+        }
+      });
+
+      if (response.success) {
+        setPurchases((prev) =>
+          prev.map((p) => (p._id === purchase._id ? response.data : p))
+        );
+        setRemoveDialogOpen(false);
+        setRemoveMaterialName("");
+        setRemoveSupplierId("");
+        setRemoveQuantity("");
+        setRemoveError("");
+        toast({
+          title: "Success",
+          description: response.message,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error removing from stock:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove from stock",
+        variant: "destructive",
+      });
+    } finally {
+      setFormLoading(false);
     }
-    const idx = purchases.findIndex(
-      (p) =>
-        p.materialName.toLowerCase() === materialName.toLowerCase() &&
-        p.supplierId === supplierId
-    );
-    if (idx === -1) {
-      setRemoveError("Material and supplier not found.");
-      return;
-    }
-    const purchase = purchases[idx];
-    if (quantityToRemove > purchase.weight) {
-      setRemoveError(
-        "Cannot remove more than available stock for this supplier."
-      );
-      return;
-    }
-    // Subtract quantity
-    const updatedPurchase = {
-      ...purchase,
-      weight: purchase.weight - quantityToRemove,
-      totalAmount: (purchase.weight - quantityToRemove) * purchase.pricePerUnit,
-    };
-    const updatedPurchases = [...purchases];
-    updatedPurchases[idx] = updatedPurchase;
-    setPurchases(updatedPurchases);
-    // Add to history
-    setHistory((prev) => [
-      ...prev,
-      {
-        materialName,
-        supplierId,
-        action: "remove",
-        actionDate: new Date(),
-        actionQuantity: quantityToRemove,
-        pricePerUnit: purchase.pricePerUnit,
-      },
-    ]);
-    setRemoveDialogOpen(false);
-    setRemoveMaterialName("");
-    setRemoveSupplierId("");
-    setRemoveQuantity("");
-    setRemoveError("");
   };
 
-  // Per-row history modal logic
-  const openHistoryModal = (materialName: string, supplierId: number) => {
-    setHistoryModalMaterial(materialName);
-    setHistoryModalSupplierId(supplierId.toString());
+  // Function to open history modal
+  const openHistoryModal = (purchase: Purchase) => {
+    setSelectedPurchase(purchase);
     setHistoryModalOpen(true);
+  };
+
+  // Function to close history modal
+  const closeHistoryModal = () => {
+    setSelectedPurchase(null);
+    setHistoryModalOpen(false);
   };
 
   const filteredPurchases = purchases.filter((purchase) => {
     const supplierName =
-      suppliers.find((s) => s.id === purchase.supplierId)?.name || "";
+      suppliers.find((s) => s._id === purchase.supplierId._id)?.name || "";
     const matchesSearch =
       searchTerm === "" ||
       purchase.materialName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -464,10 +554,10 @@ const PurchaseManagement = () => {
                       .filter((p) => p.materialName === removeMaterialName)
                       .map((p) => (
                         <SelectItem
-                          key={p.supplierId}
-                          value={p.supplierId.toString()}
+                          key={p.supplierId._id}
+                          value={p.supplierId._id}
                         >
-                          {suppliers.find((s) => s.id === p.supplierId)?.name ||
+                          {suppliers.find((s) => s._id === p.supplierId._id)?.name ||
                             "N/A"}{" "}
                           (Stock: {p.weight})
                         </SelectItem>
@@ -529,13 +619,14 @@ const PurchaseManagement = () => {
                   <DialogTitle>Add Purchase</DialogTitle>
                 </DialogHeader>
                 <PurchaseForm
-                  purchase={null}
+                  purchase={editPurchase || undefined}
                   suppliers={suppliers}
                   onSubmit={handleAdd}
                   onCancel={() => {
                     setModalOpen(false);
                     setEditPurchase(null);
                   }}
+                  isLoading={formLoading}
                 />
               </DialogContent>
             </Dialog>
@@ -584,32 +675,24 @@ const PurchaseManagement = () => {
                 <tbody>
                   {filteredPurchases.map((purchase) => (
                     <tr
-                      key={purchase.materialName + "-" + purchase.supplierId}
+                      key={purchase._id}
                       className="border-b border-gray-200 dark:border-gray-700"
                     >
-                      <td className="px-4 py-2">
-                        {suppliers.find((s) => s.id === purchase.supplierId)
-                          ?.name || "N/A"}
-                      </td>
+                      <td className="px-4 py-2">{purchase.supplierId.name}</td>
                       <td className="px-4 py-2">{purchase.materialName}</td>
                       <td className="px-4 py-2">{purchase.weight}</td>
                       <td className="px-4 py-2">{purchase.pricePerUnit}</td>
                       <td className="px-4 py-2">{purchase.totalAmount}</td>
                       <td className="px-4 py-2">
                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-                          Pending
+                          {purchase.status.charAt(0).toUpperCase() + purchase.status.slice(1)}
                         </span>
                       </td>
                       <td className="px-4 py-2">
                         <Button
                           variant="ghost"
                           className="h-8 w-8 p-0"
-                          onClick={() =>
-                            openHistoryModal(
-                              purchase.materialName,
-                              purchase.supplierId
-                            )
-                          }
+                          onClick={() => openHistoryModal(purchase)}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -631,77 +714,54 @@ const PurchaseManagement = () => {
             </div>
           </CardContent>
         </Card>
-        {/* Per-row History Modal */}
+        {/* History Modal */}
         <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>History</DialogTitle>
+              <DialogTitle>Purchase History</DialogTitle>
+              {selectedPurchase && (
+                <DialogDescription>
+                  <div className="mb-4">
+                    <p className="font-medium">{selectedPurchase.materialName}</p>
+                    <p className="text-sm text-gray-500">
+                      Supplier: {selectedPurchase.supplierId.name}
+                    </p>
+                  </div>
+                </DialogDescription>
+              )}
             </DialogHeader>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Action
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Quantity
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Price/Unit
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Date/Time
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.filter(
-                    (h) =>
-                      h.materialName === historyModalMaterial &&
-                      h.supplierId.toString() === historyModalSupplierId
-                  ).length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="text-center py-4 text-gray-500 dark:text-gray-400"
-                      >
-                        No history yet.
-                      </td>
-                    </tr>
-                  )}
-                  {history
-                    .filter(
-                      (h) =>
-                        h.materialName === historyModalMaterial &&
-                        h.supplierId.toString() === historyModalSupplierId
-                    )
-                    .map((h, idx) => (
-                      <tr
-                        key={idx}
-                        className="border-b border-gray-200 dark:border-gray-700"
-                      >
-                        <td className="px-4 py-2">
-                          <span
-                            className={
-                              h.action === "add"
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {h.action === "add" ? "Add" : "Remove"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2">{h.actionQuantity}</td>
-                        <td className="px-4 py-2">{h.pricePerUnit}</td>
-                        <td className="px-4 py-2">
-                          {dayjs(h.actionDate).format("YYYY-MM-DD HH:mm:ss")}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              {selectedPurchase?.history.map((entry, index) => (
+                <div
+                  key={index}
+                  className="p-4 rounded-lg border border-gray-200 dark:border-gray-700"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium capitalize text-primary">
+                      {entry.action}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      {dayjs(entry.date).format("MMM D, YYYY")}
+                    </span>
+                  </div>
+                  <div className="text-sm space-y-1">
+                    <p>Quantity: {entry.quantity} kg</p>
+                    {entry.notes && (
+                      <p className="text-gray-600 dark:text-gray-400">
+                        {entry.notes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={closeHistoryModal}>
+                Close
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
         {/* Delete confirmation dialog (not used, but kept for completeness) */}

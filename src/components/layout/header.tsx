@@ -37,8 +37,7 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
       setPageTitle("Transaction History");
     } else if (location === "/reports") {
       setPageTitle("Reports");
-    } else if (location === "/profile") {
-      setPageTitle("Profile");
+
     } else if (location === "/settings") {
       setPageTitle("Settings");
     } else {

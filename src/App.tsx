@@ -16,12 +16,12 @@ import ResetPasswordPage from "@/pages/auth/reset-password";
 import Dashboard from "@/pages/dashboard";
 import SuppliersPage from "@/pages/suppliers-page";
 import TransactionHistory from "@/pages/transaction-history";
-import ProfilePage from "@/pages/profile";
+
 import SettingsPage from "@/pages/settings";
 import UserCreationPage from "@/pages/user-creation";
 import UsersPage from "@/pages/users-page";
 import ExpensePage from "@/pages/expense-page";
-import PurchasePage from "@/pages/purchase-page";
+import CheckPage from "@/pages/check-page";
 
 // Workflow pages
 import PurchaseManagement from "@/pages/workflow/purchase-management";
@@ -61,11 +61,7 @@ function App() {
               <TransactionHistory />
             </ProtectedRoute>
           </Route>
-          <Route path="/profile">
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          </Route>
+
           <Route path="/settings">
             <ProtectedRoute>
               <SettingsPage />
@@ -86,9 +82,9 @@ function App() {
               <ExpensePage />
             </ProtectedRoute>
           </Route>
-          <Route path="/purchase">
+          <Route path="/checks">
             <ProtectedRoute>
-              <PurchasePage />
+              <CheckPage />
             </ProtectedRoute>
           </Route>
 

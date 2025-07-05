@@ -1,5 +1,7 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
-import { useStore } from '@/store/store';
+import { store } from '@/store/store';
+import { setToken, setUser, logout } from '@/store/slices/authSlice';
+import { addWorkflowItem, updateWorkflowItem } from '@/store/slices/workflowSlice';
 
 // Types
 export interface ApiResponse<T = any> {
@@ -57,7 +59,7 @@ const apiClient: AxiosInstance = axios.create({
 // Request interceptor
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = useStore.getState().token;
+    const token = store.getState().auth.token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -70,7 +72,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<{ message?: string; errors?: Record<string, string[]> }>) => {
     if (error.response?.status === 401) {
-      useStore.getState().logout();
+      store.dispatch(logout());
       window.location.href = '/login';
     }
     return Promise.reject({
@@ -110,8 +112,8 @@ export const apiService = {
         data
       });
       // Update store with auth data
-      useStore.getState().setToken(response.data.token);
-      useStore.getState().setUser(response.data.user);
+      store.dispatch(setToken(response.data.token));
+      store.dispatch(setUser(response.data.user));
       return response;
     },
 
@@ -123,8 +125,8 @@ export const apiService = {
         data
       });
       // Update store with auth data
-      useStore.getState().setToken(response.data.token);
-      useStore.getState().setUser(response.data.user);
+      store.dispatch(setToken(response.data.token));
+      store.dispatch(setUser(response.data.user));
       return response;
     },
 
@@ -160,7 +162,7 @@ export const apiService = {
 
     // Logout
     logout: async () => {
-      useStore.getState().logout();
+      store.dispatch(logout());
       await makeApiCall({ url: '/auth/logout', method: 'POST' });
     },
 
@@ -199,23 +201,32 @@ export const apiService = {
     create: (data: any) => makeApiCall<any>({ url: '/transactions', method: 'POST', data }),
   },
 
+  // Check APIs
+  checks: {
+    getAll: (params?: any) => makeApiCall<{ checks: any[]; total: number }>({ url: '/checks', params }),
+    getById: (id: string) => makeApiCall<any>({ url: `/checks/${id}` }),
+    create: (data: any) => makeApiCall<any>({ url: '/checks', method: 'POST', data }),
+    update: (id: string, data: any) => makeApiCall<any>({ url: `/checks/${id}`, method: 'PUT', data }),
+    delete: (id: string) => makeApiCall<void>({ url: `/checks/${id}`, method: 'DELETE' }),
+    updateStatus: (id: string, status: string) => makeApiCall<any>({ url: `/checks/${id}/status`, method: 'PUT', data: { status } }),
+  },
+
   // Workflow APIs
   workflow: {
     // Purchase Management
     purchases: {
       getAll: async () => {
         const response = await makeApiCall<any[]>({ url: '/workflow/purchases' });
-        useStore.getState().workflowItems = response.data;
         return response;
       },
       create: async (data: any) => {
         const response = await makeApiCall<any>({ url: '/workflow/purchases', method: 'POST', data });
-        useStore.getState().addWorkflowItem(response.data);
+        store.dispatch(addWorkflowItem(response.data));
         return response;
       },
       update: async (id: string, data: any) => {
         const response = await makeApiCall<any>({ url: `/workflow/purchases/${id}`, method: 'PUT', data });
-        useStore.getState().updateWorkflowItem(id, response.data);
+        store.dispatch(updateWorkflowItem({ id, updates: response.data }));
         return response;
       },
     },

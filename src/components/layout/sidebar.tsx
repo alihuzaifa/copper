@@ -22,10 +22,13 @@ import {
   CircleDollarSign,
   Home,
   Workflow,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useStore } from "@/store/store";
+import { useSelector, useDispatch } from "react-redux";
+import { logout } from "@/store/slices/authSlice";
+import type { RootState } from "@/store/store";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -49,12 +52,12 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 export function Sidebar({ isOpen }: SidebarProps) {
-  const [, navigate] = useLocation();
-  const user = useStore((state) => state.user);
-  const logout = useStore((state) => state.logout);
+  const [location, navigate] = useLocation();
+  const user = useSelector((state: RootState) => state.auth.user);
+  const dispatch = useDispatch();
 
   const handleLogout = () => {
-    logout();
+    dispatch(logout());
     navigate("/login");
   };
   
@@ -171,6 +174,18 @@ export function Sidebar({ isOpen }: SidebarProps) {
               Expense
             </a>
           </Link>
+
+          <Link href="/checks">
+            <a className={cn(
+              "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+              location === "/checks" 
+                ? "bg-primary text-white"
+                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            )}>
+              <FileText className="mr-3 h-5 w-5" />
+              Checks
+            </a>
+          </Link>
           
           <Link href="/transactions">
             <a className={cn(
@@ -190,17 +205,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
             </p>
           </div>
           
-          <Link href="/profile">
-            <a className={cn(
-              "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-              location === "/profile" 
-                ? "bg-primary text-white"
-                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-            )}>
-              <UserCog className="mr-3 h-5 w-5" />
-              Profile
-            </a>
-          </Link>
+
           
           <Link href="/settings">
             <a className={cn(

@@ -3,7 +3,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
 import { request } from "@/lib/api-client";
-import { useStore } from "@/store/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +17,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useDispatch } from "react-redux";
+import { setUser, setToken } from "@/store/slices/authSlice";
+import type { User } from "@/store/slices/authSlice";
 
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -27,14 +29,29 @@ const signupSchema = z.object({
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
+interface ApiUser {
+  _id: string;
+  email: string;
+  role: string;
+  status: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  categoryId: number;
+  shopId: string;
+  verified: boolean;
+  createdAt: string;
+  updatedAt: string;
+  transactions: any[];
+  paymentHistory: any[];
+  __v: number;
+}
+
 interface SignupResponse {
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
-  token: string;
+  success: boolean;
+  message: string;
+  data: ApiUser;
+  token?: string;
 }
 
 export function SignupForm() {
@@ -42,8 +59,7 @@ export function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const setUser = useStore((state) => state.setUser);
-  const setToken = useStore((state) => state.setToken);
+  const dispatch = useDispatch();
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -58,32 +74,42 @@ export function SignupForm() {
     try {
       setIsLoading(true);
       setError(null);
-
-      // Call signup API for super admin
+      
       const response = await request<SignupFormValues, SignupResponse>({
         url: '/users/super-admin',
         method: 'POST',
-        data: {
-          name: data.name,
-          email: data.email,
-          password: data.password
-        }
+        data
       });
-      console.log("response", response);
+      
+      if (response.success) {
+        const apiUser = response.data;
+        
+        // Map API user to store User type
+        const userData: User = {
+          id: apiUser._id,
+          name: apiUser.email.split('@')[0], // Use email username as name since name is not in response
+          email: apiUser.email,
+          role: apiUser.role
+        };
+        
+        // Update auth state using Redux
+        if (response.token) {
+          dispatch(setToken(response.token));
+        }
+        dispatch(setUser(userData));
+        
+        // Show success toast
+        toast({
+          title: "Success",
+          description: response.message,
+          duration: 5000,
+        });
 
-      // // Update store with user and token
-      // setUser(response.user);
-      // setToken(response.token);
-
-      // // Show success toast
-      // toast({
-      //   title: "Account created successfully",
-      //   description: "Welcome to the dashboard!",
-      //   duration: 5000,
-      // });
-
-      // // Navigate to dashboard
-      // navigate("/dashboard");
+        // Navigate to dashboard
+        navigate("/dashboard");
+      } else {
+        throw new Error(response.message || 'Signup failed');
+      }
     } catch (err: any) {
       // Show error toast
       toast({

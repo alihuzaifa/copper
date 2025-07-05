@@ -1,325 +1,356 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { useStore } from "@/store/store";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { z } from "zod";
+import { request } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
 
-// Form schema for account settings
-const accountFormSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().email({
-    message: "Please enter a valid email address.",
-  }),
+// Phone number regex for Pakistani numbers
+const phoneRegex = /^(\+92|92|0)(3\d{2}|3\d{2})[-]?\d{7}$/;
+
+// Form schema
+const settingsSchema = z.object({
+  shopName: z.string().min(1, "Shop name is required"),
+  softwareName: z.string().min(1, "Software name is required"),
+  shopAddress: z.string().min(1, "Shop address is required"),
+  shopDescription: z.string().min(1, "Shop description is required"),
+  firstOwnerName: z.string().min(1, "First owner name is required"),
+  firstOwnerNumber1: z.string().regex(phoneRegex, "Please enter a valid Pakistani phone number"),
+  firstOwnerNumber2: z.string().regex(phoneRegex, "Please enter a valid Pakistani phone number").optional(),
+  secondOwnerName: z.string().optional(),
+  secondOwnerNumber1: z.string().regex(phoneRegex, "Please enter a valid Pakistani phone number").optional(),
+  secondOwnerNumber2: z.string().regex(phoneRegex, "Please enter a valid Pakistani phone number").optional(),
 });
 
-// Form schema for notifications settings
-const notificationsFormSchema = z.object({
-  emailNotifications: z.boolean().default(true),
-  marketingEmails: z.boolean().default(false),
-});
+type SettingsFormValues = z.infer<typeof settingsSchema>;
 
-// Form schema for security settings
-const securityFormSchema = z.object({
-  currentPassword: z.string().min(8, {
-    message: "Password must be at least 8 characters.",
-  }),
-  newPassword: z.string().min(8, {
-    message: "Password must be at least 8 characters.",
-  }),
-  confirmPassword: z.string().min(8, {
-    message: "Password must be at least 8 characters.",
-  }),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords do not match.",
-  path: ["confirmPassword"],
-});
+interface SettingsResponse extends SettingsFormValues {
+  _id: string;
+  shopId: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
 
-const SettingsPage = () => {
-  const user = useStore(state => state.user);
+export default function SettingsPage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("account");
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasExistingSettings, setHasExistingSettings] = useState(false);
 
-  // Account form
-  const accountForm = useForm<z.infer<typeof accountFormSchema>>({
-    resolver: zodResolver(accountFormSchema),
+  const form = useForm<SettingsFormValues>({
+    resolver: zodResolver(settingsSchema),
     defaultValues: {
-      name: user?.name || "",
-      email: user?.email || "",
+      shopName: "",
+      softwareName: "",
+      shopAddress: "",
+      shopDescription: "",
+      firstOwnerName: "",
+      firstOwnerNumber1: "",
+      firstOwnerNumber2: "",
+      secondOwnerName: "",
+      secondOwnerNumber1: "",
+      secondOwnerNumber2: "",
     },
   });
 
-  // Notifications form
-  const notificationsForm = useForm<z.infer<typeof notificationsFormSchema>>({
-    resolver: zodResolver(notificationsFormSchema),
-    defaultValues: {
-      emailNotifications: true,
-      marketingEmails: false,
-    },
-  });
+  // Fetch existing settings
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
-  // Security form
-  const securityForm = useForm<z.infer<typeof securityFormSchema>>({
-    resolver: zodResolver(securityFormSchema),
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    },
-  });
+  const fetchSettings = async () => {
+    try {
+      setIsLoading(true);
+      const response = await request<void, SettingsResponse>({
+        url: '/settings',
+        method: 'GET'
+      });
 
-  // Submit handlers
-  const onAccountSubmit = (data: z.infer<typeof accountFormSchema>) => {
-    toast({
-      title: "Account updated",
-      description: "Your account settings have been updated.",
-    });
+      if (response) {
+        setHasExistingSettings(true);
+        const { 
+          _id, shopId, createdAt, updatedAt, __v,
+          ...formData 
+        } = response;
+        form.reset(formData);
+      }
+    } catch (error: any) {
+      if (error.status !== 404) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Failed to fetch settings",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const onNotificationsSubmit = (data: z.infer<typeof notificationsFormSchema>) => {
-    toast({
-      title: "Notification preferences updated",
-      description: "Your notification preferences have been updated.",
-    });
+  const onSubmit = async (values: SettingsFormValues) => {
+    try {
+      setIsLoading(true);
+      const response = await request<SettingsFormValues, SettingsResponse>({
+        url: '/settings',
+        method: 'POST',
+        data: values
+      });
+
+      if (response) {
+        toast({
+          title: "Success",
+          description: `Settings ${hasExistingSettings ? 'updated' : 'saved'} successfully`,
+        });
+
+        if (!hasExistingSettings) {
+          setHasExistingSettings(true);
+        }
+
+        // Update form with new values
+        const { 
+          _id, shopId, createdAt, updatedAt, __v,
+          ...formData 
+        } = response;
+        form.reset(formData);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to save settings",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const onSecuritySubmit = (data: z.infer<typeof securityFormSchema>) => {
-    toast({
-      title: "Password updated",
-      description: "Your password has been updated successfully.",
-    });
-    securityForm.reset();
-  };
+  if (isLoading && !hasExistingSettings) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold font-sans">Settings</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Manage your account settings and preferences
-          </p>
-        </div>
+      <div className="container mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-6">Software Settings</h1>
 
-        <Tabs defaultValue="account" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="account">Account</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="account">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Shop Details */}
             <Card>
               <CardHeader>
-                <CardTitle>Account Information</CardTitle>
-                <CardDescription>
-                  Update your account information and contact details
-                </CardDescription>
+                <CardTitle>Shop Details</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Form {...accountForm}>
-                  <form id="account-form" onSubmit={accountForm.handleSubmit(onAccountSubmit)} className="space-y-6">
-                    <FormField
-                      control={accountForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Your name" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            This is your public display name.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={accountForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Your email" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            This email will be used for notifications and account recovery.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </form>
-                </Form>
+              <CardContent className="grid gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="shopName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Shop Name *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter shop name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="softwareName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Software Name *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter software name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </CardContent>
-              <CardFooter className="flex justify-end">
-                <Button type="submit" form="account-form">
-                  Save Changes
-                </Button>
-              </CardFooter>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="notifications">
+            {/* First Owner Details */}
             <Card>
               <CardHeader>
-                <CardTitle>Notification Settings</CardTitle>
-                <CardDescription>
-                  Configure how you receive notifications and updates
-                </CardDescription>
+                <CardTitle>First Owner Details</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Form {...notificationsForm}>
-                  <form id="notifications-form" onSubmit={notificationsForm.handleSubmit(onNotificationsSubmit)} className="space-y-6">
-                    <FormField
-                      control={notificationsForm.control}
-                      name="emailNotifications"
-                      render={({ field }) => (
-                        <FormItem className="flex justify-between items-center">
-                          <div>
-                            <FormLabel>Email Notifications</FormLabel>
-                            <FormDescription>
-                              Receive notifications about your account activity by email.
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <Separator />
-                    <FormField
-                      control={notificationsForm.control}
-                      name="marketingEmails"
-                      render={({ field }) => (
-                        <FormItem className="flex justify-between items-center">
-                          <div>
-                            <FormLabel>Marketing Emails</FormLabel>
-                            <FormDescription>
-                              Receive emails about new features, updates, and promotions.
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </form>
-                </Form>
+              <CardContent className="grid gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="firstOwnerName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Owner Name *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter owner name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="firstOwnerNumber1"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Primary Number *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="03XX-XXXXXXX" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="firstOwnerNumber2"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Secondary Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="03XX-XXXXXXX" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </CardContent>
-              <CardFooter className="flex justify-end">
-                <Button type="submit" form="notifications-form">
-                  Save Preferences
-                </Button>
-              </CardFooter>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="security">
+            {/* Second Owner Details */}
             <Card>
               <CardHeader>
-                <CardTitle>Security Settings</CardTitle>
-                <CardDescription>
-                  Update your password and security preferences
-                </CardDescription>
+                <CardTitle>Second Owner Details</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Form {...securityForm}>
-                  <form id="security-form" onSubmit={securityForm.handleSubmit(onSecuritySubmit)} className="space-y-6">
-                    <FormField
-                      control={securityForm.control}
-                      name="currentPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Current Password</FormLabel>
-                          <FormControl>
-                            <Input type="password" placeholder="Your current password" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={securityForm.control}
-                      name="newPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>New Password</FormLabel>
-                          <FormControl>
-                            <Input type="password" placeholder="Your new password" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            Password must be at least 8 characters.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={securityForm.control}
-                      name="confirmPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Confirm Password</FormLabel>
-                          <FormControl>
-                            <Input type="password" placeholder="Confirm your new password" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </form>
-                </Form>
+              <CardContent className="grid gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="secondOwnerName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Owner Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter owner name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="secondOwnerNumber1"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Primary Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="03XX-XXXXXXX" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="secondOwnerNumber2"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Secondary Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="03XX-XXXXXXX" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </CardContent>
-              <CardFooter className="flex justify-end">
-                <Button type="submit" form="security-form">
-                  Update Password
-                </Button>
-              </CardFooter>
             </Card>
-          </TabsContent>
-        </Tabs>
+
+            {/* Shop Address and Description */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Shop Details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-6">
+                <FormField
+                  control={form.control}
+                  name="shopAddress"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Shop Address *</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Enter complete shop address" 
+                          {...field}
+                          rows={3}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="shopDescription"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Shop Description *</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Enter shop description (e.g., types of cables)" 
+                          {...field}
+                          rows={3}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Submit Button */}
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {hasExistingSettings ? 'Updating...' : 'Saving...'}
+                  </>
+                ) : (
+                  hasExistingSettings ? 'Update Settings' : 'Save Settings'
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </div>
     </DashboardLayout>
   );
-};
-
-export default SettingsPage;
+}
