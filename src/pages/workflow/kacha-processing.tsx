@@ -1,14 +1,55 @@
+import { useState } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import AddKachaProcessing from "@/components/workflow/AddKachaProcessing";
 import KachaReturned from "@/components/workflow/KachaReturned";
 import SellKacha from "@/components/workflow/SellKacha";
+import WorkflowStages from "@/components/layout/workflow-stages";
 
 const KachaProcessingPage = () => {
+  // Shared state for triggering refreshes across components
+  const [addKachaRefreshKey, setAddKachaRefreshKey] = useState(0);
+  const [kachaReturnedRefreshKey, setKachaReturnedRefreshKey] = useState(0);
+  const [sellKachaRefreshKey, setSellKachaRefreshKey] = useState(0);
+
+  // Functions to trigger refreshes in other components
+  const triggerAddKachaRefresh = () => {
+    setAddKachaRefreshKey(prev => prev + 1);
+  };
+
+  const triggerKachaReturnedRefresh = () => {
+    setKachaReturnedRefreshKey(prev => prev + 1);
+  };
+
+  const triggerSellKachaRefresh = () => {
+    setSellKachaRefreshKey(prev => prev + 1);
+  };
+
   return (
     <DashboardLayout>
-      <AddKachaProcessing />
-      <KachaReturned />
-      <SellKacha />
+      <div className="py-6 px-4 sm:px-6 lg:px-8">
+        <WorkflowStages currentStage={2} />
+        <AddKachaProcessing
+          key={`add-kacha-${addKachaRefreshKey}`}
+          onDataChange={() => {
+            triggerKachaReturnedRefresh();
+            triggerSellKachaRefresh();
+          }}
+        />
+        <KachaReturned
+          key={`kacha-returned-${kachaReturnedRefreshKey}`}
+          onDataChange={() => {
+            triggerAddKachaRefresh();
+            triggerSellKachaRefresh();
+          }}
+        />
+        <SellKacha
+          key={`sell-kacha-${sellKachaRefreshKey}`}
+          onDataChange={() => {
+            triggerAddKachaRefresh();
+            triggerKachaReturnedRefresh();
+          }}
+        />
+      </div>
     </DashboardLayout>
   );
 };

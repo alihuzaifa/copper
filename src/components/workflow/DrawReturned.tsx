@@ -11,30 +11,28 @@ import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-interface PurchaseItem {
+interface KachaProduct {
   id: string;
   name: string;
   quantity: number;
 }
 
-interface KachaUser {
+interface DrawerUser {
   _id: string;
   name: string;
 }
 
-interface KachaInventoryItem {
+interface DrawInventoryItem {
   _id: string;
-  originalPurchaseItemId: PurchaseItem | string;
+  originalDrawProcessingId: string;
   newName: string;
   quantity: number;
   returnDate: string;
-  shopId: string;
-  returnedBy: string;
 }
 
-interface GetKachaInventoryResponse {
+interface GetDrawInventoryResponse {
   success: boolean;
-  data: KachaInventoryItem[];
+  data: DrawInventoryItem[];
   pagination: {
     page: number;
     limit: number;
@@ -43,18 +41,18 @@ interface GetKachaInventoryResponse {
   };
 }
 
-interface GetProductsResponse {
+interface GetKachaProductsResponse {
   success: boolean;
-  data: PurchaseItem[];
+  data: KachaProduct[];
 }
 
-interface GetKachaUsersResponse {
+interface GetDrawerUsersResponse {
   success: boolean;
-  data: KachaUser[];
+  data: DrawerUser[];
 }
 
 interface AssignmentProduct {
-  khataUserId: number;
+  drawerUserId: number;
   productId: {
     _id: string;
     materialName: string;
@@ -63,32 +61,32 @@ interface AssignmentProduct {
   productName: string;
 }
 
-interface KachaReturnedProps {
+interface DrawReturnedProps {
   onDataChange?: () => void;
 }
 
-const getPurchaseItemName = (purchaseItem: any) => purchaseItem?.name || purchaseItem?.materialName || '';
-const getPurchaseItemId = (purchaseItem: any) => purchaseItem?.id || purchaseItem?._id || '';
+const getKachaProductName = (kachaProduct: any) => kachaProduct?.name || kachaProduct?.materialName || '';
+const getKachaProductId = (kachaProduct: any) => kachaProduct?.id || kachaProduct?._id || '';
 
-const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
+const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
   const { toast } = useToast();
-  const [returnedInventory, setReturnedInventory] = useState<KachaInventoryItem[]>([]);
-  const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([]);
-  const [kachaUsers, setKachaUsers] = useState<KachaUser[]>([]);
+  const [returnedInventory, setReturnedInventory] = useState<DrawInventoryItem[]>([]);
+  const [kachaProducts, setKachaProducts] = useState<KachaProduct[]>([]);
+  const [drawerUsers, setDrawerUsers] = useState<DrawerUser[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Return Kacha modal state
+  // Return Draw modal state
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [returnLoading, setReturnLoading] = useState(false);
 
-  // react-hook-form for Return Kacha
+  // react-hook-form for Return Draw
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [availableQuantity, setAvailableQuantity] = useState(0);
 
   const [assignedProducts, setAssignedProducts] = useState<AssignmentProduct[]>([]);
 
-  // Delete Returned Kacha modal state
+  // Delete Returned Draw modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteInventoryId, setDeleteInventoryId] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -96,10 +94,10 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
   const [deleteQuantity, setDeleteQuantity] = useState("");
   const selectedDeleteItem = returnedInventory.find((item) => item._id === deleteInventoryId);
 
-  // react-hook-form for Return Kacha
+  // react-hook-form for Return Draw
   const returnSchema = z.object({
-    kachaUserId: z.string().min(1, "Select a Kacha User"),
-    purchaseItemId: z.string().min(1, "Select an Item"),
+    drawerUserId: z.string().min(1, "Select a Drawer User"),
+    kachaProductId: z.string().min(1, "Select an Item"),
     quantity: z.coerce.number()
       .positive("Enter a valid quantity")
       .refine((val) => val <= availableQuantity, {
@@ -116,15 +114,15 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
     formState: { errors, touchedFields },
     reset,
   } = useForm<{
-    kachaUserId: string;
-    purchaseItemId: string;
+    drawerUserId: string;
+    kachaProductId: string;
     quantity: number | string;
     newName: string;
   }>({
     resolver: zodResolver(returnSchema),
     defaultValues: {
-      kachaUserId: "",
-      purchaseItemId: "",
+      drawerUserId: "",
+      kachaProductId: "",
       quantity: "",
       newName: "",
     },
@@ -132,8 +130,8 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
   });
 
   // Sync selectedUserId and selectedProductId with form values
-  const watchedUserId = useWatch({ control, name: "kachaUserId" });
-  const watchedProductId = useWatch({ control, name: "purchaseItemId" });
+  const watchedUserId = useWatch({ control, name: "drawerUserId" });
+  const watchedProductId = useWatch({ control, name: "kachaProductId" });
   useEffect(() => {
     setSelectedUserId(watchedUserId || "");
   }, [watchedUserId]);
@@ -141,13 +139,13 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
     setSelectedProductId(watchedProductId || "");
   }, [watchedProductId]);
 
-  // Fetch assignments when kacha user changes
+  // Fetch assignments when drawer user changes
   useEffect(() => {
     if (selectedUserId) {
       (async () => {
         try {
           const response = await request<void, { success: boolean; data: AssignmentProduct[] }>({
-            url: `/kacha-processing/assignments?khataUserId=${selectedUserId}`,
+            url: `/draw-processing/assignments?drawerUserId=${selectedUserId}`,
             method: 'GET',
           });
           if (response.success) {
@@ -164,7 +162,7 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
       setAssignedProducts([]);
     }
     setSelectedProductId("");
-    setValue("purchaseItemId", "");
+    setValue("kachaProductId", "");
   }, [selectedUserId, setValue]);
 
   const selectedProduct = assignedProducts.find((item) => item.productId._id === selectedProductId);
@@ -172,12 +170,12 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
     setAvailableQuantity(selectedProduct?.givenQuantity ?? 0);
   }, [selectedProduct]);
 
-  // Fetch returned kacha inventory
+  // Fetch returned draw inventory
   const fetchReturnedInventory = async () => {
     try {
       setLoading(true);
-      const response = await request<void, GetKachaInventoryResponse>({
-        url: '/kacha-processing/inventory',
+      const response = await request<void, GetDrawInventoryResponse>({
+        url: '/draw-processing/inventory',
         method: 'GET',
       });
       if (response.success) {
@@ -194,39 +192,39 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
     }
   };
 
-  // Fetch purchase items
-  const fetchPurchaseItems = async () => {
+  // Fetch kacha products
+  const fetchKachaProducts = async () => {
     try {
-      const response = await request<void, GetProductsResponse>({
-        url: '/kacha-processing/products',
+      const response = await request<void, GetKachaProductsResponse>({
+        url: '/draw-processing/products',
         method: 'GET',
       });
       if (response.success) {
-        setPurchaseItems(response.data);
+        setKachaProducts(response.data);
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch purchase items",
+        description: error.message || "Failed to fetch kacha products",
         variant: "destructive",
       });
     }
   };
 
-  // Fetch kacha users
-  const fetchKachaUsers = async () => {
+  // Fetch drawer users
+  const fetchDrawerUsers = async () => {
     try {
-      const response = await request<void, GetKachaUsersResponse>({
-        url: '/users/kacha-users/all',
+      const response = await request<void, GetDrawerUsersResponse>({
+        url: '/draw-processing/drawer-users',
         method: 'GET',
       });
       if (response.success) {
-        setKachaUsers(response.data);
+        setDrawerUsers(response.data);
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch kacha users",
+        description: error.message || "Failed to fetch drawer users",
         variant: "destructive",
       });
     }
@@ -234,26 +232,26 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
 
   useEffect(() => {
     fetchReturnedInventory();
-    fetchPurchaseItems();
-    fetchKachaUsers();
+    fetchKachaProducts();
+    fetchDrawerUsers();
   }, []);
 
-  // Handle return kacha
-  const handleReturnKacha = async (data: {
-    kachaUserId: string;
-    purchaseItemId: string;
+  // Handle return draw
+  const handleReturnDraw = async (data: {
+    drawerUserId: string;
+    kachaProductId: string;
     quantity: number | string;
     newName: string;
   }) => {
     try {
       setReturnLoading(true);
-      const product = assignedProducts.find((item) => item.productId._id === data.purchaseItemId);
+      const product = assignedProducts.find((item) => item.productId._id === data.kachaProductId);
       const response = await request<any, { success: boolean; message: string }>({
-        url: '/kacha-processing/return',
+        url: '/draw-processing/return',
         method: 'POST',
         data: {
-          kachaUserId: data.kachaUserId,
-          purchaseItemId: product?.productId._id,
+          drawerUserId: data.drawerUserId,
+          kachaProductId: product?.productId._id,
           quantity: Number(data.quantity),
           newName: data.newName,
           notes: `Returned ${data.quantity} kg as ${data.newName}`
@@ -268,20 +266,20 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
         // Trigger refresh in other components
         onDataChange?.();
       } else {
-        toast({ title: "Error", description: response.message || "Failed to return kacha.", variant: "destructive" });
+        toast({ title: "Error", description: response.message || "Failed to return draw.", variant: "destructive" });
       }
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to return kacha.", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to return draw.", variant: "destructive" });
     } finally {
       setReturnLoading(false);
     }
   };
 
-  // Handle delete returned kacha (API call, partial quantity allowed)
-  const handleDeleteReturnedKacha = async () => {
+  // Handle delete returned draw (API call, partial quantity allowed)
+  const handleDeleteReturnedDraw = async () => {
     setDeleteError("");
     if (!deleteInventoryId || !deleteQuantity) {
-      setDeleteError("Please select a returned kacha item and enter quantity.");
+      setDeleteError("Please select a returned draw item and enter quantity.");
       return;
     }
     const qty = parseFloat(deleteQuantity);
@@ -298,8 +296,8 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
     try {
       setDeleteLoading(true);
       const response = await request<any, { success: boolean; message: string }>({
-        url: `/kacha-processing/inventory/${deleteInventoryId}/delete`,
-        method: 'POST',
+        url: `/draw-processing/inventory/${deleteInventoryId}`,
+        method: 'DELETE',
         data: { quantity: qty },
       });
       if (response.success) {
@@ -312,10 +310,10 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
         // Trigger refresh in other components
         onDataChange?.();
       } else {
-        setDeleteError(response.message || "Failed to delete returned kacha.");
+        setDeleteError(response.message || "Failed to delete returned draw.");
       }
     } catch (error: any) {
-      setDeleteError(error.message || "Failed to delete returned kacha.");
+      setDeleteError(error.message || "Failed to delete returned draw.");
     } finally {
       setDeleteLoading(false);
     }
@@ -325,27 +323,27 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
     <Card className="mt-6">
       <CardHeader>
         <CardTitle className="text-lg font-sans">
-          Returned Kacha Inventory
+          Returned Draw Inventory
         </CardTitle>
         <p className="text-gray-500 dark:text-gray-400 text-sm">
-          Kacha returned from processing, available for sale
+          Draw items returned from processing, available for sale
         </p>
         <div className="flex w-full justify-end gap-2 mt-4">
           <Dialog open={returnModalOpen} onOpenChange={setReturnModalOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setReturnModalOpen(true)}>
-                Return Kacha
+                Return Draw
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[400px]">
               <DialogHeader>
-                <DialogTitle>Return Kacha</DialogTitle>
+                <DialogTitle>Return Draw</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit(handleReturnKacha)} className="space-y-4">
+              <form onSubmit={handleSubmit(handleReturnDraw)} className="space-y-4">
                 <div>
-                  <label className="block mb-1 font-medium">Kacha User</label>
+                  <label className="block mb-1 font-medium">Drawer User</label>
                   <Controller
-                    name="kachaUserId"
+                    name="drawerUserId"
                     control={control}
                     render={({ field, fieldState }) => (
                       <>
@@ -364,16 +362,16 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
                               ? "border-green-500"
                               : "border-gray-300 dark:border-gray-700"
                           }>
-                            <SelectValue placeholder="Select kacha user" />
+                            <SelectValue placeholder="Select drawer user" />
                           </SelectTrigger>
                           <SelectContent>
-                            {kachaUsers.map((u) => (
+                            {drawerUsers.map((u) => (
                               <SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                         {fieldState.invalid && (
-                          <div className="text-red-600 text-xs mt-1">{errors.kachaUserId?.message as string}</div>
+                          <div className="text-red-600 text-xs mt-1">{errors.drawerUserId?.message as string}</div>
                         )}
                       </>
                     )}
@@ -382,7 +380,7 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
                 <div>
                   <label className="block mb-1 font-medium">Item</label>
                   <Controller
-                    name="purchaseItemId"
+                    name="kachaProductId"
                     control={control}
                     render={({ field, fieldState }) => (
                       <>
@@ -410,7 +408,7 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
                           </SelectContent>
                         </Select>
                         {fieldState.invalid && (
-                          <div className="text-red-600 text-xs mt-1">{errors.purchaseItemId?.message as string}</div>
+                          <div className="text-red-600 text-xs mt-1">{errors.kachaProductId?.message as string}</div>
                         )}
                         {selectedProduct && (
                           <div className="text-xs text-gray-500 mt-1">Available: {selectedProduct.givenQuantity}</div>
@@ -470,19 +468,19 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
           <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
             <DialogTrigger asChild>
               <Button variant="destructive" onClick={() => setDeleteModalOpen(true)}>
-                Delete Returned Kacha
+                Delete Returned Draw
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[400px]">
               <DialogHeader>
-                <DialogTitle>Delete Returned Kacha</DialogTitle>
+                <DialogTitle>Delete Returned Draw</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <label className="block mb-1 font-medium">Returned Kacha Item</label>
+                  <label className="block mb-1 font-medium">Returned Draw Item</label>
                   <Select value={deleteInventoryId} onValueChange={setDeleteInventoryId} disabled={deleteLoading}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select returned kacha item" />
+                      <SelectValue placeholder="Select returned draw item" />
                     </SelectTrigger>
                     <SelectContent>
                       {returnedInventory.map((item) => (
@@ -517,7 +515,7 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
                   <Button variant="outline" onClick={() => setDeleteModalOpen(false)} disabled={deleteLoading}>
                     Cancel
                   </Button>
-                  <Button onClick={handleDeleteReturnedKacha} disabled={deleteLoading}>
+                  <Button onClick={handleDeleteReturnedDraw} disabled={deleteLoading}>
                     {deleteLoading ? "Deleting..." : "Delete"}
                   </Button>
                 </div>
@@ -550,8 +548,8 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
                       <div>
                         <span className="font-medium">{inv.newName}</span>
                         <span className="text-xs text-gray-500 block">
-                          (Originally: {typeof inv.originalPurchaseItemId === 'object' ? getPurchaseItemName(inv.originalPurchaseItemId) :
-                            purchaseItems.find((i) => getPurchaseItemId(i) === (typeof inv.originalPurchaseItemId === 'string' ? inv.originalPurchaseItemId : getPurchaseItemId(inv.originalPurchaseItemId)))?.name || "N/A"})
+                          (Originally: {typeof inv.originalDrawProcessingId === 'object' ? getKachaProductName(inv.originalDrawProcessingId) :
+                            kachaProducts.find((i) => getKachaProductId(i) === (typeof inv.originalDrawProcessingId === 'string' ? inv.originalDrawProcessingId : getKachaProductId(inv.originalDrawProcessingId)))?.name || "N/A"})
                         </span>
                       </div>
                     </td>
@@ -574,4 +572,4 @@ const KachaReturned = ({ onDataChange }: KachaReturnedProps) => {
   );
 };
 
-export default KachaReturned; 
+export default DrawReturned; 

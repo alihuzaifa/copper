@@ -4,35 +4,36 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from 
 import { Button } from "@/components/ui/button";
 import { Plus, Eye, Loader2, MinusCircle } from "lucide-react";
 import dayjs from "dayjs";
-import KachaProcessingForm from "./KachaProcessingForm";
+import DrawProcessingForm from "./DrawProcessingForm";
 import { request } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 
-// API Types
-interface KachaUser {
-  _id: string;
-  name: string;
-  phoneNumber?: string;
-  totalAmount?: number;
-  paidAmount?: number;
-  remainingAmount?: number;
-}
-
-interface PurchaseItem {
+// API Types based on backend
+interface DrawerUser {
   id: string;
-  _id?: string;
   name: string;
-  materialName?: string;
-  quantity: number;
-  pricePerUnit?: number;
 }
 
-interface KachaProcessingRecord {
+interface KachaProcessingItem {
+  id: string;
+  name: string;
+  quantity: number;
+}
+
+interface DrawProcessingRecord {
   _id: string;
-  kachaUserId: KachaUser;
-  purchaseItemId: PurchaseItem;
+  drawerUserId: {
+    _id: string;
+    name: string;
+    phoneNumber?: string;
+  };
+  kachaInventoryId: {
+    _id: string;
+    // ...other fields if needed
+  };
+  kachaName: string;
   quantity: number;
   totalAmount: number;
   status: string;
@@ -50,19 +51,19 @@ interface KachaProcessingRecord {
 }
 
 // API Response Types
-interface GetKachaUsersResponse {
+interface GetDrawerUsersResponse {
   success: boolean;
-  data: KachaUser[];
+  data: DrawerUser[];
 }
 
-interface GetProductsResponse {
+interface GetKachaProcessingItemsResponse {
   success: boolean;
-  data: PurchaseItem[];
+  data: KachaProcessingItem[];
 }
 
-interface GetKachaProcessingResponse {
+interface GetDrawProcessingResponse {
   success: boolean;
-  data: KachaProcessingRecord[];
+  data: DrawProcessingRecord[];
   pagination: {
     page: number;
     limit: number;
@@ -71,23 +72,21 @@ interface GetKachaProcessingResponse {
   };
 }
 
-interface AddKachaProcessingResponse {
+interface AddDrawProcessingResponse {
   success: boolean;
   message: string;
-  data: KachaProcessingRecord;
+  data: DrawProcessingRecord;
 }
 
-interface AddKachaProcessingProps {
+interface AddDrawProcessingProps {
   onDataChange?: () => void;
 }
 
-const getPurchaseItemId = (purchaseItem: PurchaseItem) => purchaseItem?.id || '';
-
-const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
+const AddDrawProcessing = ({ onDataChange }: AddDrawProcessingProps) => {
   const { toast } = useToast();
-  const [users, setUsers] = useState<KachaUser[]>([]);
-  const [items, setItems] = useState<PurchaseItem[]>([]);
-  const [records, setRecords] = useState<KachaProcessingRecord[]>([]);
+  const [users, setUsers] = useState<DrawerUser[]>([]);
+  const [items, setItems] = useState<KachaProcessingItem[]>([]);
+  const [records, setRecords] = useState<DrawProcessingRecord[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [removeModalOpen, setRemoveModalOpen] = useState(false);
   const [removeLoading, setRemoveLoading] = useState(false);
@@ -95,15 +94,15 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
   const [removeQuantity, setRemoveQuantity] = useState<string>("");
   const [removeError, setRemoveError] = useState<string>("");
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [historyModalKachaUserId, setHistoryModalKachaUserId] = useState("");
+  const [historyModalRecordId, setHistoryModalRecordId] = useState("");
   const [loading, setLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
 
-  // Fetch kacha users
-  const fetchKachaUsers = async () => {
+  // Fetch drawer users - using the correct endpoint from backend
+  const fetchDrawerUsers = async () => {
     try {
-      const response = await request<void, GetKachaUsersResponse>({
-        url: '/users/kacha-users/all',
+      const response = await request<void, GetDrawerUsersResponse>({
+        url: '/draw-processing/drawer-users',
         method: 'GET'
       });
 
@@ -111,20 +110,20 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
         setUsers(response.data);
       }
     } catch (error: any) {
-      console.error('Error fetching kacha users:', error);
+      console.error('Error fetching drawer users:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch kacha users",
+        description: error.message || "Failed to fetch drawer users",
         variant: "destructive",
       });
     }
   };
 
-  // Fetch products
-  const fetchProducts = async () => {
+  // Fetch kacha processing items - using the correct endpoint from backend
+  const fetchKachaProcessingItems = async () => {
     try {
-      const response = await request<void, GetProductsResponse>({
-        url: '/kacha-processing/products',
+      const response = await request<void, GetKachaProcessingItemsResponse>({
+        url: '/draw-processing/products',
         method: 'GET'
       });
 
@@ -132,21 +131,21 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
         setItems(response.data);
       }
     } catch (error: any) {
-      console.error('Error fetching products:', error);
+      console.error('Error fetching kacha processing items:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch products",
+        description: error.message || "Failed to fetch kacha processing items",
         variant: "destructive",
       });
     }
   };
 
-  // Fetch kacha processing records
-  const fetchKachaProcessingRecords = async () => {
+  // Fetch draw processing records
+  const fetchDrawProcessingRecords = async () => {
     try {
       setLoading(true);
-      const response = await request<void, GetKachaProcessingResponse>({
-        url: '/kacha-processing',
+      const response = await request<void, GetDrawProcessingResponse>({
+        url: '/draw-processing',
         method: 'GET'
       });
 
@@ -154,10 +153,10 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
         setRecords(response.data);
       }
     } catch (error: any) {
-      console.error('Error fetching kacha processing records:', error);
+      console.error('Error fetching draw processing records:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch kacha processing records",
+        description: error.message || "Failed to fetch draw processing records",
         variant: "destructive",
       });
     } finally {
@@ -165,31 +164,31 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
     }
   };
 
-  // Add kacha processing record
+  // Add draw processing record
   const onAdd = async (data: {
-    kachaUserId: string;
-    purchaseItemId: string;
+    drawerUserId: string;
+    kachaInventoryId: string;
     quantity: number;
     totalAmount: number;
   }) => {
     try {
       setFormLoading(true);
       
-      const response = await request<any, AddKachaProcessingResponse>({
-        url: '/kacha-processing/add',
+      const response = await request<any, AddDrawProcessingResponse>({
+        url: '/draw-processing/add',
         method: 'POST',
         data: {
-          kachaUserId: data.kachaUserId,
-          purchaseItemId: data.purchaseItemId,
+          drawerUserId: data.drawerUserId,
+          kachaInventoryId: data.kachaInventoryId,
           quantity: data.quantity,
           totalAmount: data.totalAmount,
-          notes: `Added ${data.quantity} kg for processing`
+          notes: `Added ${data.quantity} kg for draw processing`
         }
       });
 
       if (response.success) {
         // Refresh records
-        await fetchKachaProcessingRecords();
+        await fetchDrawProcessingRecords();
         
         setModalOpen(false);
         toast({
@@ -201,10 +200,10 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
         onDataChange?.();
       }
     } catch (error: any) {
-      console.error('Error adding kacha processing record:', error);
+      console.error('Error adding draw processing record:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to add kacha processing record",
+        description: error.message || "Failed to add draw processing record",
         variant: "destructive",
       });
     } finally {
@@ -212,16 +211,16 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
     }
   };
 
-  // Remove from kacha processing
+  // Remove from draw processing
   const onRemove = async () => {
     setRemoveError("");
     if (!removeRecordId || !removeQuantity) {
-      setRemoveError("Please select a kacha item and enter quantity.");
+      setRemoveError("Please select a draw item and enter quantity.");
       return;
     }
     const record = records.find(r => r._id === removeRecordId);
     if (!record) {
-      setRemoveError("Invalid kacha item selected.");
+      setRemoveError("Invalid draw item selected.");
       return;
     }
     const qty = parseFloat(removeQuantity);
@@ -236,17 +235,17 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
     try {
       setRemoveLoading(true);
       const response = await request<any, { success: boolean; message: string }>({
-        url: '/kacha-processing/remove',
+        url: '/draw-processing/remove',
         method: 'POST',
         data: {
-          kachaUserId: record.kachaUserId._id,
-          purchaseItemId: record.purchaseItemId._id,
+          drawerUserId: record.drawerUserId._id,
+          kachaInventoryId: record.kachaInventoryId._id,
           quantity: qty,
-          notes: `Removed ${qty} kg from kacha processing.`
+          notes: `Removed ${qty} kg from draw processing.`
         }
       });
       if (response.success) {
-        await fetchKachaProcessingRecords();
+        await fetchDrawProcessingRecords();
         setRemoveModalOpen(false);
         setRemoveRecordId("");
         setRemoveQuantity("");
@@ -255,25 +254,25 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
         // Trigger refresh in other components
         onDataChange?.();
       } else {
-        setRemoveError(response.message || "Failed to remove from kacha processing.");
+        setRemoveError(response.message || "Failed to remove from draw processing.");
       }
     } catch (error: any) {
-      setRemoveError(error.message || "Failed to remove from kacha processing.");
+      setRemoveError(error.message || "Failed to remove from draw processing.");
     } finally {
       setRemoveLoading(false);
     }
   };
 
-  const openHistoryModal = (kachaUserId: string, purchaseItemId: string | number) => {
-    setHistoryModalKachaUserId(kachaUserId);
+  const openHistoryModal = (recordId: string) => {
+    setHistoryModalRecordId(recordId);
     setHistoryModalOpen(true);
   };
 
   // Fetch data on component mount
   useEffect(() => {
-    fetchKachaUsers();
-    fetchProducts();
-    fetchKachaProcessingRecords();
+    fetchDrawerUsers();
+    fetchKachaProcessingItems();
+    fetchDrawProcessingRecords();
   }, []);
 
   return (
@@ -281,7 +280,7 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-sans">
-            Kacha Processing
+            Draw Processing
           </CardTitle>
           <div className="flex gap-2">
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
@@ -293,13 +292,13 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
               </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                  <DialogTitle>Add Kacha Processing</DialogTitle>
+                  <DialogTitle>Add Draw Processing</DialogTitle>
                 </DialogHeader>
-                <KachaProcessingForm
+                <DrawProcessingForm
                   onSubmit={onAdd}
                   onCancel={() => setModalOpen(false)}
                   users={users}
-                  items={items}
+                  products={items}
                   isLoading={formLoading}
                 />
               </DialogContent>
@@ -307,24 +306,24 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
             <Dialog open={removeModalOpen} onOpenChange={setRemoveModalOpen}>
               <DialogTrigger asChild>
                 <Button variant="destructive" onClick={() => setRemoveModalOpen(true)}>
-                  <MinusCircle className="mr-2 h-4 w-4" /> Remove from Kacha
+                  <MinusCircle className="mr-2 h-4 w-4" /> Remove from Draw
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[400px]">
                 <DialogHeader>
-                  <DialogTitle>Remove from Kacha</DialogTitle>
+                  <DialogTitle>Remove from Draw</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <label className="block mb-1 font-medium">Kacha Item</label>
+                    <label className="block mb-1 font-medium">Draw Item</label>
                     <Select value={removeRecordId} onValueChange={setRemoveRecordId} disabled={removeLoading}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select kacha item" />
+                        <SelectValue placeholder="Select draw item" />
                       </SelectTrigger>
                       <SelectContent>
                         {records.map((r) => (
                           <SelectItem key={r._id} value={r._id}>
-                            {(r.purchaseItemId.name || r.purchaseItemId.materialName) ?? ""} (Qty: {r.quantity})
+                            {r.kachaName} (Qty: {r.quantity})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -367,23 +366,25 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead>
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kacha User</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Drawer User</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kacha Product</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Amount</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">History</th>
                   </tr>
                 </thead>
                 <tbody>
                   {records.map((record) => (
                     <tr key={record._id} className="border-b border-gray-200 dark:border-gray-700">
-                      <td className="px-4 py-2">{record.kachaUserId.name}</td>
-                      <td className="px-4 py-2">{record.totalAmount}</td>
+                      <td className="px-4 py-2">{record.drawerUserId.name}</td>
+                      <td className="px-4 py-2">{record.kachaName}</td>
                       <td className="px-4 py-2">{record.quantity}</td>
+                      <td className="px-4 py-2">{record.totalAmount}</td>
                       <td className="px-4 py-2">
                         <Button
                           variant="ghost"
                           className="h-8 w-8 p-0"
-                          onClick={() => openHistoryModal(record._id, getPurchaseItemId(record.purchaseItemId))}
+                          onClick={() => openHistoryModal(record._id)}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -392,7 +393,7 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
                   ))}
                   {records.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={4} className="text-center py-4 text-gray-500 dark:text-gray-400">
+                      <td colSpan={5} className="text-center py-4 text-gray-500 dark:text-gray-400">
                         No records found.
                       </td>
                     </tr>
@@ -422,16 +423,16 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
               </thead>
               <tbody>
                 {records
-                  .filter((r) => r._id === historyModalKachaUserId)
+                  .filter((r) => r._id === historyModalRecordId)
                   .map((record) =>
                     record.history.map((h: any) => (
                       <tr key={h._id} className="border-b border-gray-200 dark:border-gray-700">
                         <td className="px-4 py-2">
                           <span
                             className={
-                              h.action === "created"
+                              h.action === "created" || h.action === "added"
                                 ? "text-green-600"
-                                : h.action === "return"
+                                : h.action === "return" || h.action === "returned"
                                 ? "text-blue-600"
                                 : "text-red-600"
                             }
@@ -446,7 +447,7 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
                       </tr>
                     ))
                   )}
-                {!records.some((r) => r._id === historyModalKachaUserId) && (
+                {!records.some((r) => r._id === historyModalRecordId) && (
                   <tr>
                     <td colSpan={5} className="text-center py-4 text-gray-500 dark:text-gray-400">
                       No history found.
@@ -462,4 +463,4 @@ const AddKachaProcessing = ({ onDataChange }: AddKachaProcessingProps) => {
   );
 };
 
-export default AddKachaProcessing; 
+export default AddDrawProcessing; 

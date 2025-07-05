@@ -10,16 +10,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { request } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
+import { Trash2 } from "lucide-react";
 
-interface PurchaseItem {
-  id: string;
-  name: string;
-  quantity: number;
-}
-
-interface KachaInventoryItem {
+interface DrawInventoryItem {
   _id: string;
-  originalPurchaseItemId: PurchaseItem | string;
+  originalDrawProcessingId: string;
   newName: string;
   quantity: number;
   returnDate: string;
@@ -27,9 +22,10 @@ interface KachaInventoryItem {
   returnedBy: string;
 }
 
-interface KachaSale {
+interface DrawSale {
   _id: string;
-  originalPurchaseItemId: PurchaseItem | string;
+  drawInventoryId: string;
+  originalDrawProcessingId: string;
   itemName: string;
   quantity: number;
   pricePerUnit: number;
@@ -41,9 +37,9 @@ interface KachaSale {
   notes?: string;
 }
 
-interface GetKachaInventoryResponse {
+interface GetDrawInventoryResponse {
   success: boolean;
-  data: KachaInventoryItem[];
+  data: DrawInventoryItem[];
   pagination: {
     page: number;
     limit: number;
@@ -52,9 +48,9 @@ interface GetKachaInventoryResponse {
   };
 }
 
-interface GetKachaSalesResponse {
+interface GetDrawSalesResponse {
   success: boolean;
-  data: KachaSale[];
+  data: DrawSale[];
   pagination: {
     page: number;
     limit: number;
@@ -70,28 +66,26 @@ interface SellFormData {
   buyerName: string;
 }
 
-interface SellKachaProps {
+interface SellDrawProps {
   onDataChange?: () => void;
 }
 
-const getPurchaseItemName = (purchaseItem: any) => purchaseItem?.name || purchaseItem?.materialName || '';
-
-const SellKacha = ({ onDataChange }: SellKachaProps) => {
+const SellDraw = ({ onDataChange }: SellDrawProps) => {
   const { toast } = useToast();
-  const [returnedInventory, setReturnedInventory] = useState<KachaInventoryItem[]>([]);
-  const [salesHistory, setSalesHistory] = useState<KachaSale[]>([]);
+  const [returnedInventory, setReturnedInventory] = useState<DrawInventoryItem[]>([]);
+  const [salesHistory, setSalesHistory] = useState<DrawSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null);
 
-  // Sell Kacha modal state
+  // Sell Draw modal state
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [sellLoading, setSellLoading] = useState(false);
 
   // Delete confirmation modal state
   const [deleteConfirmModalOpen, setDeleteConfirmModalOpen] = useState(false);
-  const [saleToDelete, setSaleToDelete] = useState<KachaSale | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<DrawSale | null>(null);
 
-  // react-hook-form for Sell Kacha
+  // react-hook-form for Sell Draw
   const sellSchema: z.ZodSchema<SellFormData> = z.object({
     inventoryItemId: z.string().min(1, "Select an item"),
     quantity: z.coerce.number().positive("Enter a valid quantity"),
@@ -116,11 +110,11 @@ const SellKacha = ({ onDataChange }: SellKachaProps) => {
     mode: "onTouched",
   });
 
-  // Fetch returned kacha inventory
+  // Fetch returned draw inventory
   const fetchReturnedInventory = async () => {
     try {
-      const response = await request<void, GetKachaInventoryResponse>({
-        url: '/kacha-processing/inventory',
+      const response = await request<void, GetDrawInventoryResponse>({
+        url: '/draw-processing/inventory',
         method: 'GET',
       });
       if (response.success) {
@@ -138,8 +132,8 @@ const SellKacha = ({ onDataChange }: SellKachaProps) => {
   // Fetch sales history
   const fetchSalesHistory = async () => {
     try {
-      const response = await request<void, GetKachaSalesResponse>({
-        url: '/kacha-processing/sales-history',
+      const response = await request<void, GetDrawSalesResponse>({
+        url: '/draw-processing/sales',
         method: 'GET',
       });
       if (response.success) {
@@ -163,12 +157,12 @@ const SellKacha = ({ onDataChange }: SellKachaProps) => {
     fetchData();
   }, []);
 
-  // Sell Kacha handler
-  const onSellKacha = async (data: SellFormData) => {
+  // Sell Draw handler
+  const onSellDraw = async (data: SellFormData) => {
     try {
       setSellLoading(true);
       const response = await request<any, { success: boolean; message: string }>({
-        url: '/kacha-processing/sell',
+        url: '/draw-processing/inventory/sell',
         method: 'POST',
         data: {
           inventoryItemId: data.inventoryItemId,
@@ -187,10 +181,10 @@ const SellKacha = ({ onDataChange }: SellKachaProps) => {
         // Trigger refresh in other components
         onDataChange?.();
       } else {
-        toast({ title: 'Error', description: response.message || 'Failed to sell kacha.', variant: 'destructive' });
+        toast({ title: 'Error', description: response.message || 'Failed to sell draw.', variant: 'destructive' });
       }
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to sell kacha.', variant: 'destructive' });
+      toast({ title: 'Error', description: error.message || 'Failed to sell draw.', variant: 'destructive' });
     } finally {
       setSellLoading(false);
     }
@@ -212,7 +206,7 @@ const SellKacha = ({ onDataChange }: SellKachaProps) => {
     try {
       setDeletingSaleId(saleToDelete._id);
       const response = await request<any, { success: boolean; message: string }>({
-        url: `/kacha-processing/sales/${saleToDelete._id}`,
+        url: `/draw-processing/sales/${saleToDelete._id}`,
         method: 'DELETE',
       });
       if (response.success) {
@@ -242,20 +236,20 @@ const SellKacha = ({ onDataChange }: SellKachaProps) => {
       <CardHeader>
         <CardTitle className="text-lg font-sans">Sales History</CardTitle>
         <p className="text-gray-500 dark:text-gray-400 text-sm">
-          Record of all kacha sales
+          Record of all draw sales
         </p>
         <div className="flex w-full justify-end gap-2 mt-4">
           <Dialog open={sellModalOpen} onOpenChange={setSellModalOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setSellModalOpen(true)}>
-                Sell Kacha
+                Sell Draw
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[400px]">
               <DialogHeader>
-                <DialogTitle>Sell Kacha</DialogTitle>
+                <DialogTitle>Sell Draw</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSellSubmit(onSellKacha)} className="space-y-4">
+              <form onSubmit={handleSellSubmit(onSellDraw)} className="space-y-4">
                 <div>
                   <label className="block mb-1 font-medium">Item to Sell</label>
                   <Controller
@@ -396,7 +390,7 @@ const SellKacha = ({ onDataChange }: SellKachaProps) => {
                       <div>
                         <span className="font-medium">{sale.itemName}</span>
                         <span className="text-xs text-gray-500 block">
-                          (Originally: {typeof sale.originalPurchaseItemId === 'object' ? getPurchaseItemName(sale.originalPurchaseItemId) : "N/A"})
+                          (Originally: {sale.originalDrawProcessingId || "N/A"})
                         </span>
                       </div>
                     </td>
@@ -487,4 +481,4 @@ const SellKacha = ({ onDataChange }: SellKachaProps) => {
   );
 };
 
-export default SellKacha; 
+export default SellDraw; 

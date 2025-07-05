@@ -7,48 +7,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-interface KachaUser {
-  _id: string;
+interface DrawerUser {
+  id: string;
   name: string;
-  phoneNumber?: string;
-  totalAmount?: number;
-  paidAmount?: number;
-  remainingAmount?: number;
 }
 
-interface PurchaseItem {
+interface KachaProcessingItem {
   id: string;
   name: string;
   quantity: number;
 }
 
-interface KachaProcessingFormProps {
+interface DrawProcessingFormProps {
   onSubmit: (data: {
-    kachaUserId: string;
-    purchaseItemId: string;
+    drawerUserId: string;
+    kachaInventoryId: string;
     quantity: number;
     totalAmount: number;
   }) => void;
   onCancel: () => void;
-  users: KachaUser[];
-  items: PurchaseItem[];
+  users: DrawerUser[];
+  products: KachaProcessingItem[];
   isLoading?: boolean;
 }
 
-const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = false }: KachaProcessingFormProps) => {
-  const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState<string>("");
-  const selectedItem: PurchaseItem | undefined = items.find(item => item.id === selectedPurchaseItemId);
-  const availableQuantity: number = selectedItem?.quantity ?? 0;
+const DrawProcessingForm = ({ onSubmit, onCancel, users, products, isLoading = false }: DrawProcessingFormProps) => {
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
 
+  // Find the selected product and its available quantity
+  const selectedProduct = products.find(p => p.id === selectedProductId);
+  const availableQuantity = selectedProduct?.quantity ?? 0;
+
+  // Dynamic schema that depends on availableQuantity
   const dynamicSchema: z.ZodType<any> = useMemo(() =>
     z.object({
-      kachaUserId: z.string().min(1, "Select a Kacha User"),
-      purchaseItemId: z.string().min(1, "Select a Purchase Item"),
+      drawerUserId: z.string().min(1, "Select a Drawer User"),
+      kachaInventoryId: z.string().min(1, "Select a Kacha Processing Item"),
       quantity: z.coerce.number()
         .positive("Enter a valid quantity")
-        .refine((val) => val <= availableQuantity, {
-          message: `Quantity exceeds available stock (${availableQuantity})`,
-        }),
+        .max(availableQuantity, `Cannot exceed available quantity (${availableQuantity})`),
       totalAmount: z.coerce.number().positive("Enter a valid total amount"),
     }),
     [availableQuantity]
@@ -59,22 +56,25 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = fal
     handleSubmit,
     formState: { errors, touchedFields },
     control,
+    reset,
   } = useForm({
     resolver: zodResolver(dynamicSchema),
     defaultValues: {
-      kachaUserId: "",
-      purchaseItemId: "",
+      drawerUserId: "",
+      kachaInventoryId: "",
       quantity: "",
       totalAmount: "",
     },
     mode: "onTouched",
   });
 
-  // Sync selectedPurchaseItemId with form value
-  const watchedPurchaseItemId: string = useWatch({ control, name: "purchaseItemId" });
+  // Sync selectedProductId with form value
+  const watchedProductId: string = useWatch({ control, name: "kachaInventoryId" });
   useEffect(() => {
-    setSelectedPurchaseItemId(watchedPurchaseItemId);
-  }, [watchedPurchaseItemId]);
+    setSelectedProductId(watchedProductId);
+    // Optionally reset quantity if product changes
+    reset((prev) => ({ ...prev, quantity: "" }));
+  }, [watchedProductId, reset]);
 
   const inputStyles = {
     base: "",
@@ -87,8 +87,8 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = fal
     <form
       onSubmit={handleSubmit((data) => {
         onSubmit({
-          kachaUserId: data.kachaUserId,
-          purchaseItemId: data.purchaseItemId,
+          drawerUserId: data.drawerUserId,
+          kachaInventoryId: data.kachaInventoryId,
           quantity: Number(data.quantity),
           totalAmount: Number(data.totalAmount),
         });
@@ -96,9 +96,9 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = fal
       className="space-y-4"
     >
       <div>
-        <label className="block mb-1 font-medium">Kacha User</label>
+        <label className="block mb-1 font-medium">Drawer User</label>
         <Controller
-          name="kachaUserId"
+          name="drawerUserId"
           control={control}
           render={({ field, fieldState }) => (
             <>
@@ -122,11 +122,11 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = fal
                     " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
                   }
                 >
-                  <SelectValue placeholder="Select a Kacha User" />
+                  <SelectValue placeholder="Select a Drawer User" />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.map((user: any) => (
-                    <SelectItem key={user._id} value={user._id}>
+                  {users.map((user: DrawerUser) => (
+                    <SelectItem key={user.id} value={user.id}>
                       {user.name}
                     </SelectItem>
                   ))}
@@ -134,7 +134,7 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = fal
               </Select>
               {fieldState.invalid && (
                 <div className="text-red-600 text-xs mt-1">
-                  {errors.kachaUserId?.message as string}
+                  {errors.drawerUserId?.message as string}
                 </div>
               )}
             </>
@@ -142,9 +142,9 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = fal
         />
       </div>
       <div>
-        <label className="block mb-1 font-medium">Purchase Item</label>
+        <label className="block mb-1 font-medium">Kacha Processing Item</label>
         <Controller
-          name="purchaseItemId"
+          name="kachaInventoryId"
           control={control}
           render={({ field, fieldState }) => (
             <>
@@ -168,20 +168,23 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = fal
                     " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
                   }
                 >
-                  <SelectValue placeholder="Select a Purchase Item" />
+                  <SelectValue placeholder="Select a Kacha Processing Item" />
                 </SelectTrigger>
                 <SelectContent>
-                  {items.map((item: PurchaseItem) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name} (Quantity: {item.quantity})
+                  {products.map((product: KachaProcessingItem) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.name} (Qty: {product.quantity})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {fieldState.invalid && (
                 <div className="text-red-600 text-xs mt-1">
-                  {errors.purchaseItemId?.message as string}
+                  {errors.kachaInventoryId?.message as string}
                 </div>
+              )}
+              {selectedProduct && (
+                <div className="text-xs text-gray-500 mt-1">Available: {selectedProduct.quantity}</div>
               )}
             </>
           )}
@@ -252,4 +255,4 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = fal
   );
 };
 
-export default KachaProcessingForm; 
+export default DrawProcessingForm; 
