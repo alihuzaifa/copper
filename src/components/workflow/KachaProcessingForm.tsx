@@ -4,6 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface KachaUser {
   _id: string;
@@ -30,9 +32,10 @@ interface KachaProcessingFormProps {
   onCancel: () => void;
   users: KachaUser[];
   items: PurchaseItem[];
+  isLoading?: boolean;
 }
 
-const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessingFormProps) => {
+const KachaProcessingForm = ({ onSubmit, onCancel, users, items, isLoading = false }: KachaProcessingFormProps) => {
   const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState<string>("");
   const selectedItem: PurchaseItem | undefined = items.find(item => item.id === selectedPurchaseItemId);
   const availableQuantity: number = selectedItem?.quantity ?? 0;
@@ -76,7 +79,7 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessi
   }, [watchedPurchaseItemId]);
 
   const inputStyles = {
-    base: "border px-3 py-2 rounded-md outline-none transition-colors w-full",
+    base: "",
     valid: "border-green-500",
     invalid: "border-red-500",
     default: "border-gray-300 dark:border-gray-700",
@@ -107,6 +110,7 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessi
                   field.onChange(v);
                   field.onBlur();
                 }}
+                disabled={isLoading}
               >
                 <SelectTrigger
                   className={
@@ -152,6 +156,7 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessi
                   field.onChange(v);
                   field.onBlur();
                 }}
+                disabled={isLoading}
               >
                 <SelectTrigger
                   className={
@@ -186,10 +191,11 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessi
       </div>
       <div>
         <label className="block mb-1 font-medium">Quantity</label>
-        <input
+        <Input
           {...register("quantity")}
           placeholder="Enter quantity"
           type="number"
+          disabled={isLoading}
           className={
             inputStyles.base +
             " " +
@@ -197,8 +203,7 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessi
               ? inputStyles.invalid
               : touchedFields.quantity
               ? inputStyles.valid
-              : inputStyles.default) +
-            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+              : inputStyles.default)
           }
         />
         {errors.quantity && (
@@ -209,10 +214,11 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessi
       </div>
       <div>
         <label className="block mb-1 font-medium">Total Amount</label>
-        <input
+        <Input
           {...register("totalAmount")}
           placeholder="Enter total amount"
           type="number"
+          disabled={isLoading}
           className={
             inputStyles.base +
             " " +
@@ -220,8 +226,7 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessi
               ? inputStyles.invalid
               : touchedFields.totalAmount
               ? inputStyles.valid
-              : inputStyles.default) +
-            " focus:border-gray-300 dark:focus:border-gray-700 focus:ring-0 focus:shadow-none bg-background dark:bg-gray-900 text-foreground dark:text-white"
+              : inputStyles.default)
           }
         />
         {errors.totalAmount && (
@@ -231,10 +236,19 @@ const KachaProcessingForm = ({ onSubmit, onCancel, users, items }: KachaProcessi
         )}
       </div>
       <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
           Cancel
         </Button>
-        <Button type="submit">Add</Button>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Adding...
+            </>
+          ) : (
+            "Add"
+          )}
+        </Button>
       </div>
     </form>
   );
