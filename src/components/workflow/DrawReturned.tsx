@@ -1,33 +1,76 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import dayjs from "dayjs";
-import { request } from "@/lib/api-client";
-import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { useForm, Controller, useWatch } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { request } from "@/lib/api-client";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, MinusCircle } from "lucide-react";
 
-interface KachaProduct {
+// API Types
+interface DrawerUser {
   id: string;
   name: string;
-  quantity: number;
 }
 
-interface DrawerUser {
+interface DrawProcessingRecord {
   _id: string;
-  name: string;
+  drawerUserId: {
+    _id: string;
+    name: string;
+    phoneNumber: string;
+  };
+  kachaInventoryId: {
+    _id: string;
+    newName: string;
+    quantity: number;
+  };
+  kachaName: string;
+  quantity: number;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface DrawInventoryItem {
   _id: string;
-  originalDrawProcessingId: string;
   newName: string;
   quantity: number;
   returnDate: string;
+  originalDrawProcessingId: string;
+}
+
+// API Response Types
+interface GetDrawerUsersResponse {
+  success: boolean;
+  data: DrawerUser[];
+}
+
+interface GetDrawProcessingByDrawerIdResponse {
+  success: boolean;
+  data: {
+    records: DrawProcessingRecord[];
+    summary: {
+      totalRecords: number;
+      totalQuantity: number;
+      totalAmount: number;
+      activeRecords: number;
+      completedRecords: number;
+      cancelledRecords: number;
+    };
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
 }
 
 interface GetDrawInventoryResponse {
@@ -41,150 +84,93 @@ interface GetDrawInventoryResponse {
   };
 }
 
-interface GetKachaProductsResponse {
+interface ReturnFromDrawProcessingResponse {
   success: boolean;
-  data: KachaProduct[];
-}
-
-interface GetDrawerUsersResponse {
-  success: boolean;
-  data: DrawerUser[];
-}
-
-interface AssignmentProduct {
-  drawerUserId: number;
-  productId: {
-    _id: string;
-    materialName: string;
+  message: string;
+  data: {
+    drawProcessing: DrawProcessingRecord;
+    inventoryItem: DrawInventoryItem;
   };
-  givenQuantity: number;
-  productName: string;
+}
+
+interface DeleteDrawInventoryResponse {
+  success: boolean;
+  message: string;
+  data: {
+    deletedQuantity: number;
+    remainingQuantity: number;
+    itemName: string;
+    returnedToProcessing: boolean;
+    itemDeleted: boolean;
+  };
 }
 
 interface DrawReturnedProps {
   onDataChange?: () => void;
 }
 
-const getKachaProductName = (kachaProduct: any) => kachaProduct?.name || kachaProduct?.materialName || '';
-const getKachaProductId = (kachaProduct: any) => kachaProduct?.id || kachaProduct?._id || '';
-
 const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
   const { toast } = useToast();
-  const [returnedInventory, setReturnedInventory] = useState<DrawInventoryItem[]>([]);
-  const [kachaProducts, setKachaProducts] = useState<KachaProduct[]>([]);
-  const [drawerUsers, setDrawerUsers] = useState<DrawerUser[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Return Draw modal state
   const [returnModalOpen, setReturnModalOpen] = useState(false);
-  const [returnLoading, setReturnLoading] = useState(false);
+  const [removeModalOpen, setRemoveModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [removeLoading, setRemoveLoading] = useState(false);
+  const [drawerUsers, setDrawerUsers] = useState<DrawerUser[]>([]);
+  const [drawProcessingRecords, setDrawProcessingRecords] = useState<DrawProcessingRecord[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<DrawInventoryItem[]>([]);
+  const [selectedDrawerUserId, setSelectedDrawerUserId] = useState<string>("");
+  const [removeInventoryItemId, setRemoveInventoryItemId] = useState<string>("");
+  const [removeQuantity, setRemoveQuantity] = useState<string>("");
+  const [removeError, setRemoveError] = useState<string>("");
 
-  // react-hook-form for Return Draw
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
-  const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const [availableQuantity, setAvailableQuantity] = useState(0);
-
-  const [assignedProducts, setAssignedProducts] = useState<AssignmentProduct[]>([]);
-
-  // Delete Returned Draw modal state
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deleteInventoryId, setDeleteInventoryId] = useState("");
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
-  const [deleteQuantity, setDeleteQuantity] = useState("");
-  const selectedDeleteItem = returnedInventory.find((item) => item._id === deleteInventoryId);
-
-  // react-hook-form for Return Draw
+  // Validation schema
   const returnSchema = z.object({
     drawerUserId: z.string().min(1, "Select a Drawer User"),
-    kachaProductId: z.string().min(1, "Select an Item"),
-    quantity: z.coerce.number()
-      .positive("Enter a valid quantity")
-      .refine((val) => val <= availableQuantity, {
-        message: `Quantity exceeds available stock (${availableQuantity})`,
-      }),
+    kachaInventoryId: z.string().min(1, "Select an Item").refine((val) => val !== "undefined", {
+      message: "Please select a valid item",
+    }),
+    quantity: z.coerce.number().positive("Enter a valid quantity"),
     newName: z.string().min(1, "Enter a new name"),
   });
 
   const {
-    register,
     handleSubmit,
     control,
-    setValue,
-    formState: { errors, touchedFields },
+    formState: { errors },
     reset,
-  } = useForm<{
-    drawerUserId: string;
-    kachaProductId: string;
-    quantity: number | string;
-    newName: string;
-  }>({
+    watch,
+  } = useForm({
     resolver: zodResolver(returnSchema),
     defaultValues: {
       drawerUserId: "",
-      kachaProductId: "",
+      kachaInventoryId: "",
       quantity: "",
       newName: "",
     },
     mode: "onTouched",
   });
 
-  // Sync selectedUserId and selectedProductId with form values
-  const watchedUserId = useWatch({ control, name: "drawerUserId" });
-  const watchedProductId = useWatch({ control, name: "kachaProductId" });
-  useEffect(() => {
-    setSelectedUserId(watchedUserId || "");
-  }, [watchedUserId]);
-  useEffect(() => {
-    setSelectedProductId(watchedProductId || "");
-  }, [watchedProductId]);
+  const watchedDrawerUserId = watch("drawerUserId");
+  const watchedKachaInventoryId = watch("kachaInventoryId");
 
-  // Fetch assignments when drawer user changes
-  useEffect(() => {
-    if (selectedUserId) {
-      (async () => {
-        try {
-          const response = await request<void, { success: boolean; data: AssignmentProduct[] }>({
-            url: `/draw-processing/assignments?drawerUserId=${selectedUserId}`,
-            method: 'GET',
-          });
-          if (response.success) {
-            // Ensure productId is string for all
-            setAssignedProducts(response.data.map(p => ({ ...p, productId: { ...p.productId, _id: String(p.productId._id) } })));
-          } else {
-            setAssignedProducts([]);
-          }
-        } catch (error) {
-          setAssignedProducts([]);
-        }
-      })();
-    } else {
-      setAssignedProducts([]);
-    }
-    setSelectedProductId("");
-    setValue("kachaProductId", "");
-  }, [selectedUserId, setValue]);
-
-  const selectedProduct = assignedProducts.find((item) => item.productId._id === selectedProductId);
-  useEffect(() => {
-    setAvailableQuantity(selectedProduct?.givenQuantity ?? 0);
-  }, [selectedProduct]);
-
-  // Fetch returned draw inventory
-  const fetchReturnedInventory = async () => {
+  // Fetch drawer users
+  const fetchDrawerUsers = async () => {
     try {
       setLoading(true);
-      const response = await request<void, GetDrawInventoryResponse>({
-        url: '/draw-processing/inventory',
-        method: 'GET',
+      const response = await request<void, GetDrawerUsersResponse>({
+        url: '/draw-processing/drawer-users',
+        method: 'GET'
       });
+
       if (response.success) {
-        setReturnedInventory(response.data);
+        setDrawerUsers(response.data);
       }
     } catch (error: any) {
+      console.error('Error fetching drawer users:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch returned inventory",
+        description: error.message || "Failed to fetch drawer users",
         variant: "destructive",
       });
     } finally {
@@ -192,132 +178,186 @@ const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
     }
   };
 
-  // Fetch kacha products
-  const fetchKachaProducts = async () => {
+  // Fetch draw processing records by drawer ID
+  const fetchDrawProcessingByDrawerId = async (drawerId: string) => {
     try {
-      const response = await request<void, GetKachaProductsResponse>({
-        url: '/draw-processing/products',
-        method: 'GET',
+      const response = await request<void, GetDrawProcessingByDrawerIdResponse>({
+        url: `/draw-processing/drawer/${drawerId}`,
+        method: 'GET'
       });
+
       if (response.success) {
-        setKachaProducts(response.data);
+        setDrawProcessingRecords(response.data.records);
       }
     } catch (error: any) {
+      console.error('Error fetching draw processing records:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch kacha products",
+        description: error.message || "Failed to fetch draw processing records",
         variant: "destructive",
       });
     }
   };
 
-  // Fetch drawer users
-  const fetchDrawerUsers = async () => {
+  // Fetch draw inventory
+  const fetchDrawInventory = async () => {
     try {
-      const response = await request<void, GetDrawerUsersResponse>({
-        url: '/draw-processing/drawer-users',
-        method: 'GET',
+      const response = await request<void, GetDrawInventoryResponse>({
+        url: '/draw-processing/inventory',
+        method: 'GET'
       });
+
       if (response.success) {
-        setDrawerUsers(response.data);
+        setInventoryItems(response.data);
       }
     } catch (error: any) {
+      console.error('Error fetching draw inventory:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch drawer users",
+        description: error.message || "Failed to fetch draw inventory",
         variant: "destructive",
       });
     }
   };
 
-  useEffect(() => {
-    fetchReturnedInventory();
-    fetchKachaProducts();
-    fetchDrawerUsers();
-  }, []);
+  // Handle drawer user selection change
+  const handleDrawerUserChange = (drawerId: string) => {
+    setSelectedDrawerUserId(drawerId);
+    if (drawerId) {
+      fetchDrawProcessingByDrawerId(drawerId);
+    } else {
+      setDrawProcessingRecords([]);
+    }
+  };
 
-  // Handle return draw
-  const handleReturnDraw = async (data: {
-    drawerUserId: string;
-    kachaProductId: string;
-    quantity: number | string;
-    newName: string;
-  }) => {
+  // Handle form submit
+  const handleReturnDraw = async (data: any) => {
     try {
-      setReturnLoading(true);
-      const product = assignedProducts.find((item) => item.productId._id === data.kachaProductId);
-      const response = await request<any, { success: boolean; message: string }>({
+      setFormLoading(true);
+      
+      const response = await request<any, ReturnFromDrawProcessingResponse>({
         url: '/draw-processing/return',
         method: 'POST',
         data: {
           drawerUserId: data.drawerUserId,
-          kachaProductId: product?.productId._id,
+          kachaInventoryId: data.kachaInventoryId,
           quantity: Number(data.quantity),
-          newName: data.newName,
-          notes: `Returned ${data.quantity} kg as ${data.newName}`
+          newName: data.newName.trim(),
+          notes: `Returned ${data.quantity} kg as "${data.newName.trim()}" from draw processing`
         }
       });
+
       if (response.success) {
+        toast({
+          title: "Success",
+          description: response.message || "Draw returned successfully",
+        });
+        
         setReturnModalOpen(false);
         reset();
-        fetchReturnedInventory();
-        toast({ title: "Success", description: response.message });
         
-        // Trigger refresh in other components
+        // Refresh data
+        if (selectedDrawerUserId) {
+          fetchDrawProcessingByDrawerId(selectedDrawerUserId);
+        }
+        fetchDrawInventory();
+        
+        // Trigger refresh in parent components
         onDataChange?.();
-      } else {
-        toast({ title: "Error", description: response.message || "Failed to return draw.", variant: "destructive" });
       }
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to return draw.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error.message || "Failed to return draw",
+        variant: "destructive",
+      });
     } finally {
-      setReturnLoading(false);
+      setFormLoading(false);
     }
   };
 
-  // Handle delete returned draw (API call, partial quantity allowed)
-  const handleDeleteReturnedDraw = async () => {
-    setDeleteError("");
-    if (!deleteInventoryId || !deleteQuantity) {
-      setDeleteError("Please select a returned draw item and enter quantity.");
+  // Remove from returned inventory
+  const handleRemoveFromReturned = async () => {
+    setRemoveError("");
+    if (!removeInventoryItemId || !removeQuantity) {
+      setRemoveError("Please select an inventory item and enter quantity.");
       return;
     }
-    const qty = parseFloat(deleteQuantity);
-    const selectedDeleteItem = returnedInventory.find((item) => item._id === deleteInventoryId);
-    const available = selectedDeleteItem?.quantity ?? 0;
+    
+    const inventoryItem = inventoryItems.find(item => item._id === removeInventoryItemId);
+    if (!inventoryItem) {
+      setRemoveError("Invalid inventory item selected.");
+      return;
+    }
+    
+    const qty = parseFloat(removeQuantity);
     if (isNaN(qty) || qty <= 0) {
-      setDeleteError("Enter a valid quantity.");
+      setRemoveError("Enter a valid quantity.");
       return;
     }
-    if (qty > available) {
-      setDeleteError(`Cannot delete more than available quantity (${available}).`);
+    if (qty > inventoryItem.quantity) {
+      setRemoveError(`Cannot remove more than available quantity (${inventoryItem.quantity}).`);
       return;
     }
+    
     try {
-      setDeleteLoading(true);
-      const response = await request<any, { success: boolean; message: string }>({
-        url: `/draw-processing/inventory/${deleteInventoryId}`,
+      setRemoveLoading(true);
+      const response = await request<any, DeleteDrawInventoryResponse>({
+        url: `/draw-processing/inventory/${removeInventoryItemId}`,
         method: 'DELETE',
-        data: { quantity: qty },
+        data: {
+          quantity: qty
+        }
       });
+      
       if (response.success) {
-        setDeleteModalOpen(false);
-        setDeleteInventoryId("");
-        setDeleteQuantity("");
-        fetchReturnedInventory();
-        toast({ title: "Success", description: response.message });
+        await fetchDrawInventory();
+        setRemoveModalOpen(false);
+        setRemoveInventoryItemId("");
+        setRemoveQuantity("");
+        toast({ 
+          title: "Success", 
+          description: response.message || "Item removed from returned inventory successfully" 
+        });
         
-        // Trigger refresh in other components
+        // Trigger refresh in parent components
         onDataChange?.();
       } else {
-        setDeleteError(response.message || "Failed to delete returned draw.");
+        setRemoveError(response.message || "Failed to remove from returned inventory.");
       }
     } catch (error: any) {
-      setDeleteError(error.message || "Failed to delete returned draw.");
+      setRemoveError(error.message || "Failed to remove from returned inventory.");
     } finally {
-      setDeleteLoading(false);
+      setRemoveLoading(false);
     }
   };
+
+  // Get available quantity for selected item
+  const getAvailableQuantity = () => {
+    if (!watchedKachaInventoryId) return 0;
+    const record = drawProcessingRecords.find(r => r.kachaInventoryId._id === watchedKachaInventoryId);
+    return record ? record.quantity : 0;
+  };
+
+  // Get available quantity for selected inventory item
+  const getInventoryItemQuantity = () => {
+    if (!removeInventoryItemId) return 0;
+    const item = inventoryItems.find(item => item._id === removeInventoryItemId);
+    return item ? item.quantity : 0;
+  };
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchDrawerUsers();
+    fetchDrawInventory();
+  }, []);
+
+  // Update drawer user selection when form value changes
+  useEffect(() => {
+    if (watchedDrawerUserId && watchedDrawerUserId !== selectedDrawerUserId) {
+      handleDrawerUserChange(watchedDrawerUserId);
+    }
+  }, [watchedDrawerUserId]);
 
   return (
     <Card className="mt-6">
@@ -331,7 +371,8 @@ const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
         <div className="flex w-full justify-end gap-2 mt-4">
           <Dialog open={returnModalOpen} onOpenChange={setReturnModalOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setReturnModalOpen(true)}>
+              <Button onClick={() => setReturnModalOpen(true)} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Return Draw
               </Button>
             </DialogTrigger>
@@ -347,13 +388,13 @@ const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
                     control={control}
                     render={({ field, fieldState }) => (
                       <>
-                        <Select
-                          value={field.value}
-                          onValueChange={(v) => {
-                            field.onChange(v);
-                            field.onBlur();
+                        <Select 
+                          value={field.value} 
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            handleDrawerUserChange(value);
                           }}
-                          disabled={returnLoading}
+                          disabled={loading}
                         >
                           <SelectTrigger className={
                             fieldState.invalid
@@ -362,16 +403,18 @@ const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
                               ? "border-green-500"
                               : "border-gray-300 dark:border-gray-700"
                           }>
-                            <SelectValue placeholder="Select drawer user" />
+                            <SelectValue placeholder={loading ? "Loading users..." : "Select a Drawer User"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {drawerUsers.map((u) => (
-                              <SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>
+                            {drawerUsers.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.name}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                         {fieldState.invalid && (
-                          <div className="text-red-600 text-xs mt-1">{errors.drawerUserId?.message as string}</div>
+                          <div className="text-red-600 text-xs mt-1">{errors.drawerUserId && errors.drawerUserId.message}</div>
                         )}
                       </>
                     )}
@@ -380,17 +423,14 @@ const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
                 <div>
                   <label className="block mb-1 font-medium">Item</label>
                   <Controller
-                    name="kachaProductId"
+                    name="kachaInventoryId"
                     control={control}
                     render={({ field, fieldState }) => (
                       <>
-                        <Select
-                          value={field.value}
-                          onValueChange={(v) => {
-                            field.onChange(v);
-                            field.onBlur();
-                          }}
-                          disabled={returnLoading || !selectedUserId}
+                        <Select 
+                          value={field.value} 
+                          onValueChange={field.onChange}
+                          disabled={!watchedDrawerUserId || drawProcessingRecords.length === 0}
                         >
                           <SelectTrigger className={
                             fieldState.invalid
@@ -399,124 +439,145 @@ const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
                               ? "border-green-500"
                               : "border-gray-300 dark:border-gray-700"
                           }>
-                            <SelectValue placeholder={selectedUserId ? "Select item" : "Select user first"} />
+                            <SelectValue placeholder={
+                              !watchedDrawerUserId 
+                                ? "Select a drawer user first" 
+                                : drawProcessingRecords.length === 0 
+                                ? "No items available for this user" 
+                                : "Select an item"
+                            } />
                           </SelectTrigger>
                           <SelectContent>
-                            {assignedProducts.map((item) => (
-                              <SelectItem key={item.productId._id} value={item.productId._id}>{item.productName} (Quantity: {item.givenQuantity})</SelectItem>
+                            {drawProcessingRecords.map((record) => (
+                              <SelectItem key={record.kachaInventoryId._id} value={record.kachaInventoryId._id}>
+                                {record.kachaName} (Qty: {record.quantity})
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                         {fieldState.invalid && (
-                          <div className="text-red-600 text-xs mt-1">{errors.kachaProductId?.message as string}</div>
-                        )}
-                        {selectedProduct && (
-                          <div className="text-xs text-gray-500 mt-1">Available: {selectedProduct.givenQuantity}</div>
+                          <div className="text-red-600 text-xs mt-1">{errors.kachaInventoryId && errors.kachaInventoryId.message}</div>
                         )}
                       </>
                     )}
                   />
                 </div>
                 <div>
-                  <label className="block mb-1 font-medium">Quantity</label>
-                  <Input
-                    {...register("quantity")}
-                    placeholder="Enter quantity"
-                    type="number"
-                    disabled={returnLoading}
-                    className={
-                      errors.quantity
-                        ? "border-red-500"
-                        : touchedFields.quantity
-                        ? "border-green-500"
-                        : "border-gray-300 dark:border-gray-700"
-                    }
+                  <label className="block mb-1 font-medium">Quantity (Available: {getAvailableQuantity()})</label>
+                  <Controller
+                    name="quantity"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <>
+                        <Input
+                          type="number"
+                          min="1"
+                          max={getAvailableQuantity()}
+                          placeholder="Enter quantity"
+                          {...field}
+                        />
+                        {fieldState.invalid && (
+                          <div className="text-red-600 text-xs mt-1">{errors.quantity && errors.quantity.message}</div>
+                        )}
+                      </>
+                    )}
                   />
-                  {errors.quantity && (
-                    <div className="text-red-600 text-xs mt-1">{errors.quantity.message as string}</div>
-                  )}
                 </div>
                 <div>
                   <label className="block mb-1 font-medium">New Name</label>
-                  <Input
-                    {...register("newName")}
-                    placeholder="Enter new name"
-                    disabled={returnLoading}
-                    className={
-                      errors.newName
-                        ? "border-red-500"
-                        : touchedFields.newName
-                        ? "border-green-500"
-                        : "border-gray-300 dark:border-gray-700"
-                    }
+                  <Controller
+                    name="newName"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <>
+                        <Input
+                          placeholder="Enter new name for returned item"
+                          {...field}
+                        />
+                        {fieldState.invalid && (
+                          <div className="text-red-600 text-xs mt-1">{errors.newName && errors.newName.message}</div>
+                        )}
+                      </>
+                    )}
                   />
-                  {errors.newName && (
-                    <div className="text-red-600 text-xs mt-1">{errors.newName.message as string}</div>
-                  )}
                 </div>
-                <div className="flex justify-end space-x-2 pt-2">
-                  <Button variant="outline" type="button" onClick={() => { setReturnModalOpen(false); reset(); }} disabled={returnLoading}>
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setReturnModalOpen(false)}
+                    disabled={formLoading}
+                  >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={returnLoading}>
-                    {returnLoading ? "Returning..." : "Return"}
+                  <Button type="submit" disabled={formLoading}>
+                    {formLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Return
                   </Button>
                 </div>
               </form>
             </DialogContent>
           </Dialog>
-          <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+          
+          <Dialog open={removeModalOpen} onOpenChange={setRemoveModalOpen}>
             <DialogTrigger asChild>
-              <Button variant="destructive" onClick={() => setDeleteModalOpen(true)}>
-                Delete Returned Draw
+              <Button variant="destructive" onClick={() => setRemoveModalOpen(true)} disabled={loading}>
+                <MinusCircle className="mr-2 h-4 w-4" />
+                Remove From Returned
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[400px]">
               <DialogHeader>
-                <DialogTitle>Delete Returned Draw</DialogTitle>
+                <DialogTitle>Remove From Returned</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <label className="block mb-1 font-medium">Returned Draw Item</label>
-                  <Select value={deleteInventoryId} onValueChange={setDeleteInventoryId} disabled={deleteLoading}>
+                  <label className="block mb-1 font-medium">Inventory Item</label>
+                  <Select 
+                    value={removeInventoryItemId} 
+                    onValueChange={setRemoveInventoryItemId} 
+                    disabled={removeLoading}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select returned draw item" />
+                      <SelectValue placeholder="Select inventory item" />
                     </SelectTrigger>
                     <SelectContent>
-                      {returnedInventory.map((item) => (
-                        <SelectItem key={item._id} value={item._id}>{item.newName} (Qty: {item.quantity})</SelectItem>
+                      {inventoryItems.map((item) => (
+                        <SelectItem key={item._id} value={item._id}>
+                          {item.newName} (Qty: {item.quantity})
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {selectedDeleteItem && (
-                    <div className="text-xs text-gray-500 mt-1">Available: {selectedDeleteItem.quantity}</div>
-                  )}
                 </div>
                 <div>
-                  <label className="block mb-1 font-medium">Quantity to Delete</label>
+                  <label className="block mb-1 font-medium">Quantity to Remove (Available: {getInventoryItemQuantity()})</label>
                   <Input
                     type="number"
-                    min="0"
-                    value={deleteQuantity}
-                    onChange={e => setDeleteQuantity(e.target.value)}
+                    min="1"
+                    max={getInventoryItemQuantity()}
+                    value={removeQuantity}
+                    onChange={e => setRemoveQuantity(e.target.value)}
                     placeholder="Enter quantity"
-                    disabled={deleteLoading}
-                    className={
-                      deleteError
-                        ? "border-red-500"
-                        : deleteQuantity
-                        ? "border-green-500"
-                        : "border-gray-300 dark:border-gray-700"
-                    }
+                    disabled={removeLoading}
                   />
                 </div>
-                {deleteError && <div className="text-red-600 text-xs">{deleteError}</div>}
+                {removeError && <div className="text-red-600 text-xs">{removeError}</div>}
                 <div className="flex justify-end space-x-2 pt-2">
-                  <Button variant="outline" onClick={() => setDeleteModalOpen(false)} disabled={deleteLoading}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setRemoveModalOpen(false)} 
+                    disabled={removeLoading}
+                  >
                     Cancel
                   </Button>
-                  <Button onClick={handleDeleteReturnedDraw} disabled={deleteLoading}>
-                    {deleteLoading ? "Deleting..." : "Delete"}
+                  <Button 
+                    onClick={handleRemoveFromReturned} 
+                    disabled={removeLoading}
+                    variant="destructive"
+                  >
+                    {removeLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Remove
                   </Button>
                 </div>
               </div>
@@ -529,32 +590,20 @@ const DrawReturned = ({ onDataChange }: DrawReturnedProps) => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead>
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Available Quantity</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Last Return Date</th>
+                <th className="px-4 py-2 text-left">Name</th>
+                <th className="px-4 py-2 text-left">Quantity</th>
+                <th className="px-4 py-2 text-left">Return Date</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={3} className="text-center py-4 text-gray-500 dark:text-gray-400">
-                    Loading inventory...
-                  </td>
-                </tr>
-              ) : returnedInventory.length > 0 ? (
-                returnedInventory.map((inv) => (
-                  <tr key={inv._id} className="border-b border-gray-200 dark:border-gray-700">
+              {inventoryItems.length > 0 ? (
+                inventoryItems.map((item) => (
+                  <tr key={item._id} className="border-b border-gray-200 dark:border-gray-700">
+                    <td className="px-4 py-2">{item.newName}</td>
+                    <td className="px-4 py-2">{item.quantity}</td>
                     <td className="px-4 py-2">
-                      <div>
-                        <span className="font-medium">{inv.newName}</span>
-                        <span className="text-xs text-gray-500 block">
-                          (Originally: {typeof inv.originalDrawProcessingId === 'object' ? getKachaProductName(inv.originalDrawProcessingId) :
-                            kachaProducts.find((i) => getKachaProductId(i) === (typeof inv.originalDrawProcessingId === 'string' ? inv.originalDrawProcessingId : getKachaProductId(inv.originalDrawProcessingId)))?.name || "N/A"})
-                        </span>
-                      </div>
+                      {dayjs(item.returnDate).format('DD/MM/YYYY HH:mm')}
                     </td>
-                    <td className="px-4 py-2">{inv.quantity}</td>
-                    <td className="px-4 py-2">{dayjs(inv.returnDate).format("YYYY-MM-DD HH:mm")}</td>
                   </tr>
                 ))
               ) : (

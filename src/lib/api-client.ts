@@ -27,9 +27,6 @@ axiosInstance.interceptors.request.use(
       // Remove any existing Bearer prefix to avoid duplication
       const cleanToken = token.replace('Bearer ', '');
       config.headers.Authorization = `Bearer ${cleanToken}`;
-      
-      // Debug log
-      console.log('Authorization header:', config.headers.Authorization);
     }
     return config;
   }
