@@ -25,7 +25,7 @@ interface DrawInventoryItem {
 interface DrawSale {
   _id: string;
   drawInventoryId: string;
-  originalDrawProcessingId: string;
+  originalDrawProcessingId: string | { _id: string; [key: string]: any };
   itemName: string;
   quantity: number;
   pricePerUnit: number;
@@ -390,7 +390,7 @@ const SellDraw = ({ onDataChange }: SellDrawProps) => {
                       <div>
                         <span className="font-medium">{sale.itemName}</span>
                         <span className="text-xs text-gray-500 block">
-                          (Originally: {sale.originalDrawProcessingId || "N/A"})
+                          (Originally: {typeof sale.originalDrawProcessingId === 'object' ? sale.originalDrawProcessingId._id || 'N/A' : sale.originalDrawProcessingId || "N/A"})
                         </span>
                       </div>
                     </td>
@@ -406,7 +406,7 @@ const SellDraw = ({ onDataChange }: SellDrawProps) => {
                         onClick={() => handleDeleteSale(sale._id)}
                         disabled={deletingSaleId === sale._id}
                       >
-                        {deletingSaleId === sale._id ? "Deleting..." : "Delete"}
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </td>
                   </tr>
