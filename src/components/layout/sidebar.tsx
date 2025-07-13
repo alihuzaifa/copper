@@ -1,8 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { LucideIcon } from "lucide-react";
-import { apiService } from "@/lib/api-service";
 import { WORKFLOW_STAGES } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, getSoftwareName } from "@/lib/utils";
 import { 
   ShoppingCart, 
   Bolt, 
@@ -18,17 +17,12 @@ import {
   UserCog, 
   Settings, 
   LogOut,
-  ChevronDown,
-  CircleDollarSign,
-  Home,
-  Workflow,
   FileText,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "@/store/slices/authSlice";
 import type { RootState } from "@/store/store";
+import defaultSoftwareDetail from "@/softwareSetting";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -54,12 +48,16 @@ const iconMap: Record<string, LucideIcon> = {
 export function Sidebar({ isOpen }: SidebarProps) {
   const [location, navigate] = useLocation();
   const user = useSelector((state: RootState) => state.auth.user);
+  const settings = useSelector((state: RootState) => state.settings);
   const dispatch = useDispatch();
 
   const handleLogout = () => {
     dispatch(logout());
     navigate("/login");
   };
+  
+  const softwareName = getSoftwareName(settings?.apiSettings);
+  const logoLetters = softwareName.slice(0, 2).toUpperCase();
   
   return (
     <aside 
@@ -74,9 +72,11 @@ export function Sidebar({ isOpen }: SidebarProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-bold">
-              CW
+              {logoLetters}
             </div>
-            <span className="text-lg font-bold font-sans">CopperWire Pro</span>
+            <span className="text-lg font-bold font-sans">
+              {getSoftwareName(settings?.apiSettings)}
+            </span>
           </div>
         </div>
       </div>

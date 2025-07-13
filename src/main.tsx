@@ -7,13 +7,16 @@ import { store, persistor } from './store/store';
 import { queryClient } from './lib/queryClient';
 import App from './App';
 import './index.css';
+import { HelmetProvider } from 'react-helmet-async';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <QueryClientProvider client={queryClient}>
-          <App />
+          <HelmetProvider>
+            <App />
+          </HelmetProvider>
         </QueryClientProvider>
       </PersistGate>
     </Provider>

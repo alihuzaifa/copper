@@ -49,6 +49,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Helmet } from 'react-helmet-async';
+import { useSelector } from 'react-redux';
+import { getSoftwareName } from '@/lib/utils';
+import defaultSoftwareDetail from '@/softwareSetting';
 
 // API Types
 interface Supplier {
@@ -288,13 +292,15 @@ const PurchaseManagement = () => {
 
   // Remove from stock dialog state
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
-  const [removeMaterialName, setRemoveMaterialName] = useState("");
-  const [removeSupplierId, setRemoveSupplierId] = useState("");
+  const [removePurchaseId, setRemovePurchaseId] = useState("");
   const [removeQuantity, setRemoveQuantity] = useState("");
   const [removeError, setRemoveError] = useState("");
 
   // History state
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
+
+  const { apiSettings } = useSelector((state: any) => state.settings);
+  const softwareName = getSoftwareName(apiSettings, defaultSoftwareDetail.softwareName);
 
   // Function to fetch purchases
   const fetchPurchases = async () => {
@@ -404,36 +410,26 @@ const PurchaseManagement = () => {
       setFormLoading(true);
       setRemoveError("");
       
-      const supplierId = removeSupplierId;
-      const materialName = removeMaterialName.trim();
+      const purchaseId = removePurchaseId;
       const quantityToRemove = parseFloat(removeQuantity);
-
-      if (!materialName || !supplierId || !quantityToRemove || quantityToRemove <= 0) {
-        setRemoveError("Please select a material, supplier, and enter a valid quantity.");
+      if (!purchaseId || !quantityToRemove || quantityToRemove <= 0) {
+        setRemoveError("Please select a purchase and enter a valid quantity.");
         return;
       }
-
-      const purchase = purchases.find(
-        (p) => p.materialName.toLowerCase() === materialName.toLowerCase() && 
-              p.supplierId._id === supplierId
-      );
-
+      const purchase = purchases.find((p) => p._id === purchaseId);
       if (!purchase) {
-        setRemoveError("Material and supplier not found.");
+        setRemoveError("Purchase not found.");
         return;
       }
-
       if (quantityToRemove > purchase.weight) {
-        setRemoveError("Cannot remove more than available stock for this supplier.");
+        setRemoveError("Cannot remove more than available stock for this purchase.");
         return;
       }
-
       const response = await request<any, UpdatePurchaseResponse>({
         url: `/purchases/${purchase._id}`,
         method: 'PUT',
         data: {
-          weight: purchase.weight - quantityToRemove,
-          totalAmount: (purchase.weight - quantityToRemove) * purchase.pricePerUnit
+          weight: purchase.weight - quantityToRemove
         }
       });
 
@@ -442,8 +438,7 @@ const PurchaseManagement = () => {
           prev.map((p) => (p._id === purchase._id ? response.data : p))
         );
         setRemoveDialogOpen(false);
-        setRemoveMaterialName("");
-        setRemoveSupplierId("");
+        setRemovePurchaseId("");
         setRemoveQuantity("");
         setRemoveError("");
         toast({
@@ -486,304 +481,263 @@ const PurchaseManagement = () => {
   });
 
   return (
-    <DashboardLayout>
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        {/* Workflow Stages */}
-        <WorkflowStages currentStage={1} />
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold font-sans">
-              Purchase Management
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">
-              Add, update, and manage your purchases
-            </p>
+    <>
+      <Helmet>
+        <title>{softwareName} | Purchase Management</title>
+        <meta name="description" content="Manage purchases for your copper wire manufacturing workflow." />
+      </Helmet>
+      <DashboardLayout>
+        <div className="py-6 px-4 sm:px-6 lg:px-8">
+          {/* Workflow Stages */}
+          <WorkflowStages currentStage={1} />
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold font-sans">
+                Purchase Management
+              </h1>
+              <p className="text-gray-500 dark:text-gray-400 mt-1">
+                Add, update, and manage your purchases
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={() => setRemoveDialogOpen(true)}
+            >
+              Remove from Stock
+            </Button>
           </div>
-          <Button
-            variant="destructive"
-            onClick={() => setRemoveDialogOpen(true)}
-          >
-            Remove from Stock
-          </Button>
-        </div>
-        {/* Remove from Stock Dialog */}
-        <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>Remove from Stock</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="block mb-1 font-medium">Material</label>
-                <Select
-                  value={removeMaterialName}
-                  onValueChange={(v) => {
-                    setRemoveMaterialName(v);
-                    setRemoveSupplierId("");
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select material" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from(
-                      new Set(purchases.map((p) => p.materialName))
-                    ).map((name) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="block mb-1 font-medium">Supplier</label>
-                <Select
-                  value={removeSupplierId}
-                  onValueChange={setRemoveSupplierId}
-                  disabled={!removeMaterialName}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {purchases
-                      .filter((p) => p.materialName === removeMaterialName)
-                      .map((p) => (
-                        <SelectItem
-                          key={p.supplierId._id}
-                          value={p.supplierId._id}
-                        >
-                          {suppliers.find((s) => s._id === p.supplierId._id)?.name ||
-                            "N/A"}{" "}
-                          (Stock: {p.weight})
+          {/* Remove from Stock Dialog */}
+          <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+            <DialogContent className="sm:max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle>Remove from Stock</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="block mb-1 font-medium">Purchase</label>
+                  <Select
+                    value={removePurchaseId}
+                    onValueChange={setRemovePurchaseId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select purchase" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {purchases.map((p) => (
+                        <SelectItem key={p._id} value={p._id}>
+                          {p.materialName} (Supplier: {p.supplierId.name}, Stock: {p.weight})
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="block mb-1 font-medium">
-                  Quantity to Remove
-                </label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={removeQuantity}
-                  onChange={(e) => setRemoveQuantity(e.target.value)}
-                  placeholder="Enter quantity"
-                />
-              </div>
-              {removeError && (
-                <div className="text-red-600 text-xs">{removeError}</div>
-              )}
-              <div className="flex justify-end space-x-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setRemoveDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleRemoveFromStock}>Remove</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-        {/* Purchases Table */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-sans">Purchases</CardTitle>
-            <Dialog
-              open={modalOpen}
-              onOpenChange={(open) => {
-                setModalOpen(open);
-                if (!open) setEditPurchase(null);
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button
-                  onClick={() => {
-                    setEditPurchase(null);
-                    setModalOpen(true);
-                  }}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Purchase
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Add Purchase</DialogTitle>
-                </DialogHeader>
-                <PurchaseForm
-                  purchase={editPurchase || undefined}
-                  suppliers={suppliers}
-                  onSubmit={handleAdd}
-                  onCancel={() => {
-                    setModalOpen(false);
-                    setEditPurchase(null);
-                  }}
-                  isLoading={formLoading}
-                />
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent>
-            {/* Search control */}
-            <div className="mb-4 flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Input
-                  placeholder="Search purchases..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
-            {/* Purchases table */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Supplier
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Material Name
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Weight
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Price/Unit
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Total Amount
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      History
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPurchases.map((purchase) => (
-                    <tr
-                      key={purchase._id}
-                      className="border-b border-gray-200 dark:border-gray-700"
-                    >
-                      <td className="px-4 py-2">{purchase.supplierId.name}</td>
-                      <td className="px-4 py-2">{purchase.materialName}</td>
-                      <td className="px-4 py-2">{purchase.weight}</td>
-                      <td className="px-4 py-2">{purchase.pricePerUnit}</td>
-                      <td className="px-4 py-2">{purchase.totalAmount}</td>
-                      <td className="px-4 py-2">
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-                          {purchase.status.charAt(0).toUpperCase() + purchase.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2">
-                        <Button
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={() => openHistoryModal(purchase)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredPurchases.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="text-center py-4 text-gray-500 dark:text-gray-400"
-                      >
-                        No purchases found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-        {/* History Modal */}
-        <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Purchase History</DialogTitle>
-              {selectedPurchase && (
-                <DialogDescription>
-                  <div className="mb-4">
-                    <p className="font-medium">{selectedPurchase.materialName}</p>
-                    <p className="text-sm text-gray-500">
-                      Supplier: {selectedPurchase.supplierId.name}
-                    </p>
-                  </div>
-                </DialogDescription>
-              )}
-            </DialogHeader>
-
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              {selectedPurchase?.history.map((entry, index) => (
-                <div
-                  key={index}
-                  className="p-4 rounded-lg border border-gray-200 dark:border-gray-700"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium capitalize text-primary">
-                      {entry.action}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {dayjs(entry.date).format("MMM D, YYYY")}
-                    </span>
-                  </div>
-                  <div className="text-sm space-y-1">
-                    <p>Quantity: {entry.quantity} kg</p>
-                    {entry.notes && (
-                      <p className="text-gray-600 dark:text-gray-400">
-                        {entry.notes}
-                      </p>
-                    )}
-                  </div>
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={closeHistoryModal}>
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        {/* Delete confirmation dialog (not used, but kept for completeness) */}
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the purchase for material "
-                {selectedPurchase?.materialName}". This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {}}
-                className="bg-red-600 hover:bg-red-700 text-white"
+                <div>
+                  <label className="block mb-1 font-medium">
+                    Quantity to Remove
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={removeQuantity}
+                    onChange={(e) => setRemoveQuantity(e.target.value)}
+                    placeholder="Enter quantity"
+                  />
+                </div>
+                {removeError && (
+                  <div className="text-red-600 text-xs">{removeError}</div>
+                )}
+                <div className="flex justify-end space-x-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setRemoveDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleRemoveFromStock}>Remove</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          {/* Purchases Table */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-sans">Purchases</CardTitle>
+              <Dialog
+                open={modalOpen}
+                onOpenChange={(open) => {
+                  setModalOpen(open);
+                  if (!open) setEditPurchase(null);
+                }}
               >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </DashboardLayout>
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setEditPurchase(null);
+                      setModalOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Purchase
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Purchase</DialogTitle>
+                  </DialogHeader>
+                  <PurchaseForm
+                    purchase={editPurchase || undefined}
+                    suppliers={suppliers}
+                    onSubmit={handleAdd}
+                    onCancel={() => {
+                      setModalOpen(false);
+                      setEditPurchase(null);
+                    }}
+                    isLoading={formLoading}
+                  />
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {/* Search control */}
+              <div className="mb-4 flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <Input
+                    placeholder="Search purchases..."
+                    className="pl-8"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+              {/* Purchases table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Supplier
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Material Name
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Weight
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        History
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPurchases.map((purchase) => (
+                      <tr
+                        key={purchase._id}
+                        className="border-b border-gray-200 dark:border-gray-700"
+                      >
+                        <td className="px-4 py-2">{purchase.supplierId.name}</td>
+                        <td className="px-4 py-2">{purchase.materialName}</td>
+                        <td className="px-4 py-2">{purchase.weight}</td>
+                        <td className="px-4 py-2">
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => openHistoryModal(purchase)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredPurchases.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="text-center py-4 text-gray-500 dark:text-gray-400"
+                        >
+                          No purchases found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+          {/* History Modal */}
+          <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Purchase History</DialogTitle>
+                {selectedPurchase && (
+                  <DialogDescription>
+                    <div className="mb-4">
+                      <p className="font-medium">{selectedPurchase.materialName}</p>
+                      <p className="text-sm text-gray-500">
+                        Supplier: {selectedPurchase.supplierId.name}
+                      </p>
+                    </div>
+                  </DialogDescription>
+                )}
+              </DialogHeader>
+
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                {selectedPurchase?.history.map((entry, index) => (
+                  <div
+                    key={index}
+                    className="p-4 rounded-lg border border-gray-200 dark:border-gray-700"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium capitalize text-primary">
+                        {entry.action}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {dayjs(entry.date).format("MMM D, YYYY")}
+                      </span>
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <p>Quantity: {entry.quantity} kg</p>
+                      {entry.notes && (
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {entry.notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closeHistoryModal}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          {/* Delete confirmation dialog (not used, but kept for completeness) */}
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the purchase for material "
+                  {selectedPurchase?.materialName}". This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {}}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </DashboardLayout>
+    </>
   );
 };
 

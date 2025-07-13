@@ -13,4 +13,21 @@ textarea:focus, textarea:focus-visible {
   outline: none !important;
   box-shadow: none !important;
   border-color: inherit !important;
+}
+
+/* Auth form styles */
+.form-input {
+  @apply w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400 dark:focus:border-blue-400 dark:focus:ring-blue-400;
+}
+
+.btn-gradient {
+  @apply bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-4 rounded-md hover:from-blue-700 hover:to-purple-700 transition-all duration-200;
+}
+
+.text-primary {
+  @apply text-blue-600 dark:text-blue-400;
+}
+
+.text-white-dark {
+  @apply text-gray-600 dark:text-gray-300;
 } 

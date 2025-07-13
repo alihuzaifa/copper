@@ -18,40 +18,42 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useDispatch } from "react-redux";
-import { setUser, setToken } from "@/store/slices/authSlice";
+import { setUser, setToken, setAuthEmail } from "@/store/slices/authSlice";
 import type { User } from "@/store/slices/authSlice";
 
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string().min(1, "Confirm password is required"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
 interface ApiUser {
   _id: string;
-  email: string;
-  role: string;
-  status: string;
-  totalAmount: number;
-  paidAmount: number;
-  remainingAmount: number;
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
   categoryId: number;
+  role: string;
+  status: 'active' | 'inactive';
   shopId: string;
   verified: boolean;
   createdAt: string;
   updatedAt: string;
-  transactions: any[];
-  paymentHistory: any[];
-  __v: number;
+  totalAmount?: number;
+  paidAmount?: number;
+  remainingAmount?: number;
 }
 
 interface SignupResponse {
   success: boolean;
   message: string;
   data: ApiUser;
-  token?: string;
 }
 
 export function SignupForm() {
@@ -67,6 +69,7 @@ export function SignupForm() {
       name: "",
       email: "",
       password: "",
+      confirmPassword: "",
     },
   });
 
@@ -75,10 +78,15 @@ export function SignupForm() {
       setIsLoading(true);
       setError(null);
       
-      const response = await request<SignupFormValues, SignupResponse>({
-        url: '/users/super-admin',
+      // Call the correct API endpoint for creating admin
+      const response = await request<Omit<SignupFormValues, 'confirmPassword'>, SignupResponse>({
+        url: '/users/admin',
         method: 'POST',
-        data
+        data: {
+          name: data.name,
+          email: data.email,
+          password: data.password
+        }
       });
       
       if (response.success) {
@@ -87,16 +95,14 @@ export function SignupForm() {
         // Map API user to store User type
         const userData: User = {
           id: apiUser._id,
-          name: apiUser.email.split('@')[0], // Use email username as name since name is not in response
-          email: apiUser.email,
+          name: data.name, // Use the actual name from form
+          email: apiUser.email || '',
           role: apiUser.role
         };
         
         // Update auth state using Redux
-        if (response.token) {
-          dispatch(setToken(response.token));
-        }
         dispatch(setUser(userData));
+        dispatch(setAuthEmail(data.email));
         
         // Show success toast
         toast({
@@ -105,8 +111,8 @@ export function SignupForm() {
           duration: 5000,
         });
 
-        // Navigate to dashboard
-        navigate("/dashboard");
+        // Navigate to OTP verification page
+        navigate("/verify-otp");
       } else {
         throw new Error(response.message || 'Signup failed');
       }
@@ -195,14 +201,34 @@ export function SignupForm() {
             )}
           />
 
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Confirm Password</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Confirm your password"
+                    type="password"
+                    autoComplete="new-password"
+                    disabled={isLoading}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating super admin account...
+                Creating account...
               </>
             ) : (
-              "Create super admin account"
+              "Create account"
             )}
           </Button>
 

@@ -18,6 +18,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "@/store/store";
+import { setSettings } from "@/store/slices/settingsSlice";
+import { Helmet } from 'react-helmet-async';
+import { getSoftwareName } from '@/lib/utils';
+import defaultSoftwareDetail from '@/softwareSetting';
 
 // Phone number regex for Pakistani numbers
 const phoneRegex = /^(\+92|92|0)(3\d{2}|3\d{2})[-]?\d{7}$/;
@@ -48,8 +54,11 @@ interface SettingsResponse extends SettingsFormValues {
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const dispatch = useDispatch();
+  const { apiSettings } = useSelector((state: RootState) => state.settings);
   const [isLoading, setIsLoading] = useState(false);
   const [hasExistingSettings, setHasExistingSettings] = useState(false);
+  const softwareName = getSoftwareName(apiSettings, defaultSoftwareDetail.softwareName);
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -72,6 +81,18 @@ export default function SettingsPage() {
     fetchSettings();
   }, []);
 
+  // Set form defaults from Redux if available
+  useEffect(() => {
+    if (apiSettings && !hasExistingSettings) {
+      const { 
+        _id, shopId, createdAt, updatedAt, __v,
+        ...formData 
+      } = apiSettings;
+      form.reset(formData);
+      setHasExistingSettings(true);
+    }
+  }, [apiSettings, form, hasExistingSettings]);
+
   const fetchSettings = async () => {
     try {
       setIsLoading(true);
@@ -87,6 +108,9 @@ export default function SettingsPage() {
           ...formData 
         } = response;
         form.reset(formData);
+        
+        // Store complete response in Redux
+        dispatch(setSettings(response));
       }
     } catch (error: any) {
       if (error.status !== 404) {
@@ -126,6 +150,9 @@ export default function SettingsPage() {
           ...formData 
         } = response;
         form.reset(formData);
+        
+        // Store complete response in Redux
+        dispatch(setSettings(response));
       }
     } catch (error: any) {
       toast({
@@ -140,36 +167,187 @@ export default function SettingsPage() {
 
   if (isLoading && !hasExistingSettings) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      </DashboardLayout>
+      <>
+        <Helmet>
+          <title>{softwareName} | Settings</title>
+          <meta name="description" content="Software and shop settings for your copper wire manufacturing management." />
+        </Helmet>
+        <DashboardLayout>
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="container mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-6">Software Settings</h1>
+    <>
+      <Helmet>
+        <title>{softwareName} | Settings</title>
+        <meta name="description" content="Software and shop settings for your copper wire manufacturing management." />
+      </Helmet>
+      <DashboardLayout>
+        <div className="py-6 px-4 sm:px-6 lg:px-8">
+          <h1 className="text-2xl font-bold mb-6">Software Settings</h1>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Shop Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Shop Details</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Shop Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Shop Details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="shopName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Shop Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter shop name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="softwareName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Software Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter software name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="mb-6" />
+              {/* First Owner Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>First Owner Details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="firstOwnerName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Owner Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter owner name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="firstOwnerNumber1"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Primary Number *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="03XX-XXXXXXX" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="firstOwnerNumber2"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Secondary Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="03XX-XXXXXXX" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="mb-6" />
+              {/* Second Owner Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Second Owner Details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="secondOwnerName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Owner Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter owner name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="secondOwnerNumber1"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Primary Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="03XX-XXXXXXX" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="secondOwnerNumber2"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Secondary Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="03XX-XXXXXXX" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="mb-6" />
+              {/* Shop Address and Description */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Shop Details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-6">
                   <FormField
                     control={form.control}
-                    name="shopName"
+                    name="shopAddress"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Shop Name *</FormLabel>
+                        <FormLabel>Shop Address *</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter shop name" {...field} />
+                          <Textarea 
+                            placeholder="Enter complete shop address" 
+                            {...field}
+                            rows={3}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -177,180 +355,40 @@ export default function SettingsPage() {
                   />
                   <FormField
                     control={form.control}
-                    name="softwareName"
+                    name="shopDescription"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Software Name *</FormLabel>
+                        <FormLabel>Shop Description *</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter software name" {...field} />
+                          <Textarea 
+                            placeholder="Enter shop description (e.g., types of cables)" 
+                            {...field}
+                            rows={3}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* First Owner Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>First Owner Details</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="firstOwnerName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Owner Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter owner name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="firstOwnerNumber1"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Primary Number *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="03XX-XXXXXXX" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="firstOwnerNumber2"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Secondary Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="03XX-XXXXXXX" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Second Owner Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Second Owner Details</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="secondOwnerName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Owner Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter owner name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="secondOwnerNumber1"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Primary Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="03XX-XXXXXXX" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="secondOwnerNumber2"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Secondary Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="03XX-XXXXXXX" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Shop Address and Description */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Shop Details</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-6">
-                <FormField
-                  control={form.control}
-                  name="shopAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Shop Address *</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Enter complete shop address" 
-                          {...field}
-                          rows={3}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                </CardContent>
+              </Card>
+              {/* Submit Button */}
+              <div className="flex justify-end">
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {hasExistingSettings ? 'Updating...' : 'Saving...'}
+                    </>
+                  ) : (
+                    hasExistingSettings ? 'Update Settings' : 'Save Settings'
                   )}
-                />
-                <FormField
-                  control={form.control}
-                  name="shopDescription"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Shop Description *</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Enter shop description (e.g., types of cables)" 
-                          {...field}
-                          rows={3}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Submit Button */}
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {hasExistingSettings ? 'Updating...' : 'Saving...'}
-                  </>
-                ) : (
-                  hasExistingSettings ? 'Update Settings' : 'Save Settings'
-                )}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </div>
-    </DashboardLayout>
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </div>
+      </DashboardLayout>
+    </>
   );
 }

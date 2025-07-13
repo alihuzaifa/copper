@@ -15,6 +15,11 @@ import { z } from "zod";
 import { request } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import moment from 'moment';
+import { Input } from "@/components/ui/input";
+import { Helmet } from 'react-helmet-async';
+import { useSelector } from 'react-redux';
+import { getSoftwareName } from '@/lib/utils';
+import defaultSoftwareDetail from '@/softwareSetting';
 
 // Types
 export type NewExpense = {
@@ -111,11 +116,10 @@ function ExpenseForm({ onSubmit, onCancel, defaultDate, defaultValues }: {
     >
       <div>
         <label className="block mb-1 font-medium">Expense Name</label>
-        <input
+        <Input
           {...register("expenseName")}
           placeholder="Enter expense name"
-          className={
-            `border px-3 py-2 rounded-md outline-none w-full ${touchedFields.expenseName && errors.expenseName ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'} text-black`}
+          // error and disabled states handled by Input
         />
         {touchedFields.expenseName && errors.expenseName && (
           <div className="text-red-600 text-xs mt-1">{errors.expenseName.message as string}</div>
@@ -123,11 +127,9 @@ function ExpenseForm({ onSubmit, onCancel, defaultDate, defaultValues }: {
       </div>
       <div>
         <label className="block mb-1 font-medium">Expense Amount</label>
-        <input
+        <Input
           {...register("amount")}
           placeholder="Enter amount"
-          className={
-            `border px-3 py-2 rounded-md outline-none w-full ${touchedFields.amount && errors.amount ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'} text-black bg-white`}
           type="number"
           min="0"
         />
@@ -141,11 +143,8 @@ function ExpenseForm({ onSubmit, onCancel, defaultDate, defaultValues }: {
           name="date"
           control={control}
           render={({ field }) => (
-            <input
+            <Input
               type="date"
-              className={
-                `border px-3 py-2 rounded-md outline-none w-full ${touchedFields.date && errors.date ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'} text-black bg-white`
-              }
               max={new Date().toISOString().split('T')[0]}
               value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
               onChange={e => field.onChange(new Date(e.target.value))}
@@ -176,6 +175,8 @@ const ExpensePage = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { apiSettings } = useSelector((state: any) => state.settings);
+  const softwareName = getSoftwareName(apiSettings, defaultSoftwareDetail.softwareName);
 
   // Fetch expenses
   const fetchExpenses = async () => {
@@ -307,127 +308,133 @@ const ExpensePage = () => {
   }
 
   return (
-    <DashboardLayout>
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold font-sans">Expense Management</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">
-              Add, view, and manage your expenses
-            </p>
+    <>
+      <Helmet>
+        <title>{softwareName} | Expense</title>
+        <meta name="description" content="Manage expenses for your copper wire manufacturing management system." />
+      </Helmet>
+      <DashboardLayout>
+        <div className="py-6 px-4 sm:px-6 lg:px-8">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold font-sans">Expense Management</h1>
+              <p className="text-gray-500 dark:text-gray-400 mt-1">
+                Add, view, and manage your expenses
+              </p>
+            </div>
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Add Expense
+            </Button>
           </div>
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Add Expense
-          </Button>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-sans">Expenses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Amount</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.keys(grouped).length === 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-sans">Expenses</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead>
                     <tr>
-                      <td colSpan={3} className="text-center py-4 text-gray-500 dark:text-gray-400">
-                        No expenses found.
-                      </td>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Amount</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
-                  )}
-                  {Object.entries(grouped).map(([date, exps]) => {
-                    const expensesArr = exps as Expense[];
-                    return (
-                      <tr key={date} className="border-b border-gray-200 dark:border-gray-700">
-                        <td className="px-4 py-2">{date}</td>
-                        <td className="px-4 py-2">{expensesArr.reduce((sum, e) => sum + e.amount, 0)}</td>
-                        <td className="px-4 py-2">
-                          <Button variant="ghost" onClick={() => { setViewDate(new Date(date)); setModalOpen(true); }}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                  </thead>
+                  <tbody>
+                    {Object.keys(grouped).length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="text-center py-4 text-gray-500 dark:text-gray-400">
+                          No expenses found.
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {/* Grand Total Section */}
-              {Object.keys(grouped).length > 0 && (
-                <div className="flex justify-end mt-4 pr-4">
-                  <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-lg">
-                    <span className="font-medium text-gray-600 dark:text-gray-300">Grand Total: </span>
-                    <span className="font-bold text-gray-900 dark:text-gray-100">
-                      {Object.values(grouped).reduce((total, expenses) => {
-                        const expensesArr = expenses as Expense[];
-                        return total + expensesArr.reduce((sum, e) => sum + e.amount, 0);
-                      }, 0)}
-                    </span>
+                    )}
+                    {Object.entries(grouped).map(([date, exps]) => {
+                      const expensesArr = exps as Expense[];
+                      return (
+                        <tr key={date} className="border-b border-gray-200 dark:border-gray-700">
+                          <td className="px-4 py-2">{date}</td>
+                          <td className="px-4 py-2">{expensesArr.reduce((sum, e) => sum + e.amount, 0)}</td>
+                          <td className="px-4 py-2">
+                            <Button variant="ghost" onClick={() => { setViewDate(new Date(date)); setModalOpen(true); }}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {/* Grand Total Section */}
+                {Object.keys(grouped).length > 0 && (
+                  <div className="flex justify-end mt-4 pr-4">
+                    <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-lg">
+                      <span className="font-medium text-gray-600 dark:text-gray-300">Grand Total: </span>
+                      <span className="font-bold text-gray-900 dark:text-gray-100">
+                        {Object.values(grouped).reduce((total, expenses) => {
+                          const expensesArr = expenses as Expense[];
+                          return total + expensesArr.reduce((sum, e) => sum + e.amount, 0);
+                        }, 0)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        {/* Add/Edit Expense Dialog */}
-        <Dialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) setEditExpense(undefined); }}>
-          <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto scrollbar-none">
-            <DialogHeader>
-              <DialogTitle>{editExpense ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
-            </DialogHeader>
-            <ExpenseForm
-              onSubmit={handleSave}
-              onCancel={() => { setFormOpen(false); setEditExpense(undefined); }}
-              defaultDate={editExpense?.date || today}
-              defaultValues={editExpense}
-            />
-          </DialogContent>
-        </Dialog>
-        {/* View Expenses Modal */}
-        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Expenses for {viewDate && viewDate.toISOString().split("T")[0]}</DialogTitle>
-            </DialogHeader>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {viewDate && (grouped[viewDate.toISOString().split("T")[0]] as Expense[])?.map((exp: Expense, idx: number) => (
-                    <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
-                      <td className="px-4 py-2">{exp.expenseName}</td>
-                      <td className="px-4 py-2">{exp.amount}</td>
-                      <td className="px-4 py-2 flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleEdit(exp)}>Edit</Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleDelete(exp)}>Delete</Button>
-                      </td>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          {/* Add/Edit Expense Dialog */}
+          <Dialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) setEditExpense(undefined); }}>
+            <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto scrollbar-none">
+              <DialogHeader>
+                <DialogTitle>{editExpense ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
+              </DialogHeader>
+              <ExpenseForm
+                onSubmit={handleSave}
+                onCancel={() => { setFormOpen(false); setEditExpense(undefined); }}
+                defaultDate={editExpense?.date || today}
+                defaultValues={editExpense}
+              />
+            </DialogContent>
+          </Dialog>
+          {/* View Expenses Modal */}
+          <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Expenses for {viewDate && viewDate.toISOString().split("T")[0]}</DialogTitle>
+              </DialogHeader>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              {/* Total row */}
-              {viewDate && (
-                <div className="flex justify-end mt-2">
-                  <span className="font-semibold">Total: {((grouped[viewDate.toISOString().split("T")[0]] as Expense[])?.reduce((sum, e) => sum + e.amount, 0) || 0)}</span>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </DashboardLayout>
+                  </thead>
+                  <tbody>
+                    {viewDate && (grouped[viewDate.toISOString().split("T")[0]] as Expense[])?.map((exp: Expense, idx: number) => (
+                      <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
+                        <td className="px-4 py-2">{exp.expenseName}</td>
+                        <td className="px-4 py-2">{exp.amount}</td>
+                        <td className="px-4 py-2 flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleEdit(exp)}>Edit</Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleDelete(exp)}>Delete</Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {/* Total row */}
+                {viewDate && (
+                  <div className="flex justify-end mt-2">
+                    <span className="font-semibold">Total: {((grouped[viewDate.toISOString().split("T")[0]] as Expense[])?.reduce((sum, e) => sum + e.amount, 0) || 0)}</span>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </DashboardLayout>
+    </>
   );
 };
 

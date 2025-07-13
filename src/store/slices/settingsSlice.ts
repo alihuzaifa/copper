@@ -1,5 +1,24 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+// API Settings Response type
+export interface SettingsResponse {
+  _id: string;
+  shopId: string;
+  shopName: string;
+  softwareName: string;
+  shopAddress: string;
+  shopDescription: string;
+  firstOwnerName: string;
+  firstOwnerNumber1: string;
+  firstOwnerNumber2?: string;
+  secondOwnerName?: string;
+  secondOwnerNumber1?: string;
+  secondOwnerNumber2?: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
 export interface Settings {
   theme: 'light' | 'dark' | 'system';
   language: string;
@@ -10,6 +29,8 @@ export interface Settings {
     desktop: boolean;
   };
   displayDensity: 'comfortable' | 'compact' | 'standard';
+  // API Settings
+  apiSettings: SettingsResponse | null;
 }
 
 const defaultSettings: Settings = {
@@ -22,6 +43,7 @@ const defaultSettings: Settings = {
     desktop: true,
   },
   displayDensity: 'standard',
+  apiSettings: null,
 };
 
 // Get initial theme from system preference
@@ -54,10 +76,13 @@ const settingsSlice = createSlice({
       }
       return { ...state, ...newSettings };
     },
+    setSettings: (state, action: PayloadAction<SettingsResponse>) => {
+      state.apiSettings = action.payload;
+    },
     resetSettings: () => defaultSettings,
   },
 });
 
-export const { updateSettings, resetSettings } = settingsSlice.actions;
+export const { updateSettings, setSettings, resetSettings } = settingsSlice.actions;
 
 export default settingsSlice.reducer; 

@@ -49,6 +49,9 @@ import { useToast } from "@/hooks/use-toast";
 import { request } from "@/lib/api-client";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store/store";
+import { Helmet } from 'react-helmet-async';
+import { getSoftwareName } from '@/lib/utils';
+import defaultSoftwareDetail from '@/softwareSetting';
 
 interface Category {
   id: number;
@@ -393,6 +396,8 @@ const UsersPage = () => {
 
   // Get auth state from Redux
   const token = useSelector((state: RootState) => state.auth.token);
+  const { apiSettings } = useSelector((state: any) => state.settings);
+  const softwareName = getSoftwareName(apiSettings, defaultSoftwareDetail.softwareName);
 
   // Fetch categories
   useEffect(() => {
@@ -531,236 +536,242 @@ const UsersPage = () => {
   };
 
   return (
-    <DashboardLayout>
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold font-sans">User Management</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Add and manage your users
-          </p>
-        </div>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-sans">Users</CardTitle>
-            <Dialog
-              open={modalOpen}
-              onOpenChange={(open) => {
-                setModalOpen(open);
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button
-                  onClick={() => {
-                    setModalOpen(true);
-                  }}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add User
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Add User</DialogTitle>
-                </DialogHeader>
-                <UserForm
-                  categories={categories}
-                  onSubmit={handleAdd}
-                  onCancel={() => {
-                    setModalOpen(false);
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent>
-            {/* Search and filter controls */}
-            <div className="mb-4 flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Input
-                  placeholder="Search users..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+    <>
+      <Helmet>
+        <title>{softwareName} | Users</title>
+        <meta name="description" content="Manage users for your copper wire manufacturing management system." />
+      </Helmet>
+      <DashboardLayout>
+        <div className="py-6 px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold font-sans">User Management</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+              Add and manage your users
+            </p>
+          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-sans">Users</CardTitle>
+              <Dialog
+                open={modalOpen}
+                onOpenChange={(open) => {
+                  setModalOpen(open);
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setModalOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add User
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>Add User</DialogTitle>
+                  </DialogHeader>
+                  <UserForm
+                    categories={categories}
+                    onSubmit={handleAdd}
+                    onCancel={() => {
+                      setModalOpen(false);
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {/* Search and filter controls */}
+              <div className="mb-4 flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <Input
+                    placeholder="Search users..."
+                    className="pl-8"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="w-full sm:w-[200px] flex items-center">
+                  <Filter className="mr-2 h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <Select
+                    value={categoryFilter}
+                    onValueChange={setCategoryFilter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem
+                          key={category.id}
+                          value={category.id.toString()}
+                        >
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="w-full sm:w-[200px] flex items-center">
-                <Filter className="mr-2 h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Select
-                  value={categoryFilter}
-                  onValueChange={setCategoryFilter}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem
-                        key={category.id}
-                        value={category.id.toString()}
-                      >
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {/* Users table */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Name/Email
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Phone
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Category
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
+              {/* Users table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead>
                     <tr>
-                      <td colSpan={5} className="text-center py-4">
-                        <div className="flex justify-center items-center">
-                          <Loader2 className="h-6 w-6 animate-spin" />
-                          <span className="ml-2">Loading users...</span>
-                        </div>
-                      </td>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Name/Email
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Phone
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Category
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Status
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Actions
+                      </th>
                     </tr>
-                  ) : users.length > 0 ? (
-                    users.map((user) => (
-                      <tr
-                        key={user._id}
-                        className="border-b border-gray-200 dark:border-gray-700"
-                      >
-                        <td className="px-4 py-2">
-                          {user.categoryId === 2 ? user.email : user.name}
-                        </td>
-                        <td className="px-4 py-2">{user.phoneNumber || "N/A"}</td>
-                        <td className="px-4 py-2">
-                          {categories.find((c) => c.id === user.categoryId)
-                            ?.name || "N/A"}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              user.status === "active"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-                            }`}
-                          >
-                            {user.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => handleToggleStatus(user)}
-                              >
-                                <Power className="mr-2 h-4 w-4" />
-                                {user.status === 'active' ? 'Deactivate' : 'Activate'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedUser(user);
-                                  setDeleteDialogOpen(true);
-                                }}
-                                className="text-red-600 dark:text-red-400"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                  </thead>
+                  <tbody>
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-4">
+                          <div className="flex justify-center items-center">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                            <span className="ml-2">Loading users...</span>
+                          </div>
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="text-center py-4 text-gray-500 dark:text-gray-400"
-                      >
-                        No users found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {users.length > 0 && (
-              <div className="mt-4 flex justify-between items-center">
-                <div className="text-sm text-gray-500">
-                  Showing {(pagination.currentPage - 1) * pagination.itemsPerPage + 1} to{" "}
-                  {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{" "}
-                  {pagination.totalItems} users
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!pagination.hasPrevPage}
-                    onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!pagination.hasNextPage}
-                    onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
-                  >
-                    Next
-                  </Button>
-                </div>
+                    ) : users.length > 0 ? (
+                      users.map((user) => (
+                        <tr
+                          key={user._id}
+                          className="border-b border-gray-200 dark:border-gray-700"
+                        >
+                          <td className="px-4 py-2">
+                            {user.categoryId === 2 ? user.email : user.name}
+                          </td>
+                          <td className="px-4 py-2">{user.phoneNumber || "N/A"}</td>
+                          <td className="px-4 py-2">
+                            {categories.find((c) => c.id === user.categoryId)
+                              ?.name || "N/A"}
+                          </td>
+                          <td className="px-4 py-2">
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                user.status === "active"
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                                  : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+                              }`}
+                            >
+                              {user.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => handleToggleStatus(user)}
+                                >
+                                  <Power className="mr-2 h-4 w-4" />
+                                  {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                  className="text-red-600 dark:text-red-400"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="text-center py-4 text-gray-500 dark:text-gray-400"
+                        >
+                          No users found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Delete confirmation dialog */}
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the user "{selectedUser?.name || selectedUser?.email}".
-                This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </DashboardLayout>
+              {/* Pagination */}
+              {users.length > 0 && (
+                <div className="mt-4 flex justify-between items-center">
+                  <div className="text-sm text-gray-500">
+                    Showing {(pagination.currentPage - 1) * pagination.itemsPerPage + 1} to{" "}
+                    {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{" "}
+                    {pagination.totalItems} users
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!pagination.hasPrevPage}
+                      onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!pagination.hasNextPage}
+                      onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Delete confirmation dialog */}
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the user "{selectedUser?.name || selectedUser?.email}".
+                  This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </DashboardLayout>
+    </>
   );
 };
 

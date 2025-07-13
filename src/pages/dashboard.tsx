@@ -9,6 +9,10 @@ import StockStatus from "@/components/dashboard/stock-status";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Helmet } from 'react-helmet-async';
+import { useSelector } from 'react-redux';
+import { getSoftwareName } from '@/lib/utils';
+import defaultSoftwareDetail from '@/softwareSetting';
 
 interface DashboardStats {
   rawMaterials: number;
@@ -22,97 +26,106 @@ const Dashboard = () => {
     queryKey: [API_ENDPOINTS.dashboard.stats],
   });
 
+  const { apiSettings } = useSelector((state: any) => state.settings);
+  const softwareName = getSoftwareName(apiSettings, defaultSoftwareDetail.softwareName);
+
   return (
-    <DashboardLayout>
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        {/* Workflow Stages */}
-        <WorkflowStages allChecked />
-        
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {isLoading ? (
-            <>
-              <Skeleton className="h-32" />
-              <Skeleton className="h-32" />
-              <Skeleton className="h-32" />
-              <Skeleton className="h-32" />
-            </>
-          ) : (
-            <>
-              <StatsCard
-                title="Raw Materials"
-                value={`${stats?.rawMaterials.toLocaleString() || 0} kg`}
-                icon={Box}
-                iconColor="text-blue-500 dark:text-blue-300"
-                iconBgColor="bg-blue-100 dark:bg-blue-900"
-                change={{
-                  value: 3.2,
-                  label: "from last month",
-                  isPositive: true
-                }}
-              />
-              
-              <StatsCard
-                title="Finished Products"
-                value={`${stats?.finishedProducts.toLocaleString() || 0} units`}
-                icon={Package}
-                iconColor="text-green-500 dark:text-green-300"
-                iconBgColor="bg-green-100 dark:bg-green-900"
-                change={{
-                  value: 5.8,
-                  label: "from last month",
-                  isPositive: true
-                }}
-              />
-              
-              <StatsCard
-                title="Suppliers"
-                value={stats?.suppliers.toString() || "0"}
-                icon={Users}
-                iconColor="text-purple-500 dark:text-purple-300"
-                iconBgColor="bg-purple-100 dark:bg-purple-900"
-                change={{
-                  value: 0,
-                  label: "no change"
-                }}
-              />
-              
-              <StatsCard
-                title="Total Value"
-                value={`₹${((stats?.totalValue ?? 0) / 100000).toFixed(1)}L`}
-                icon={DollarSign}
-                iconColor="text-yellow-500 dark:text-yellow-300"
-                iconBgColor="bg-yellow-100 dark:bg-yellow-900"
-                change={{
-                  value: 2.1,
-                  label: "from last month",
-                  isPositive: false
-                }}
-              />
-            </>
-          )}
-        </div>
-        
-        {/* Recent Activity & Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <RecentActivity />
+    <>
+      <Helmet>
+        <title>{softwareName} | Dashboard</title>
+        <meta name="description" content="Dashboard for your copper wire manufacturing management." />
+      </Helmet>
+      <DashboardLayout>
+        <div className="py-6 px-4 sm:px-6 lg:px-8">
+          {/* Workflow Stages */}
+          <WorkflowStages allChecked />
           
-          <div className="flex flex-col">
-            <QuickActions />
-            <StockStatus />
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {isLoading ? (
+              <>
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+              </>
+            ) : (
+              <>
+                <StatsCard
+                  title="Raw Materials"
+                  value={`${stats?.rawMaterials.toLocaleString() || 0} kg`}
+                  icon={Box}
+                  iconColor="text-blue-500 dark:text-blue-300"
+                  iconBgColor="bg-blue-100 dark:bg-blue-900"
+                  change={{
+                    value: 3.2,
+                    label: "from last month",
+                    isPositive: true
+                  }}
+                />
+                
+                <StatsCard
+                  title="Finished Products"
+                  value={`${stats?.finishedProducts.toLocaleString() || 0} units`}
+                  icon={Package}
+                  iconColor="text-green-500 dark:text-green-300"
+                  iconBgColor="bg-green-100 dark:bg-green-900"
+                  change={{
+                    value: 5.8,
+                    label: "from last month",
+                    isPositive: true
+                  }}
+                />
+                
+                <StatsCard
+                  title="Suppliers"
+                  value={stats?.suppliers.toString() || "0"}
+                  icon={Users}
+                  iconColor="text-purple-500 dark:text-purple-300"
+                  iconBgColor="bg-purple-100 dark:bg-purple-900"
+                  change={{
+                    value: 0,
+                    label: "no change"
+                  }}
+                />
+                
+                <StatsCard
+                  title="Total Value"
+                  value={`₹${((stats?.totalValue ?? 0) / 100000).toFixed(1)}L`}
+                  icon={DollarSign}
+                  iconColor="text-yellow-500 dark:text-yellow-300"
+                  iconBgColor="bg-yellow-100 dark:bg-yellow-900"
+                  change={{
+                    value: 2.1,
+                    label: "from last month",
+                    isPositive: false
+                  }}
+                />
+              </>
+            )}
           </div>
+          
+          {/* Recent Activity & Quick Actions */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <RecentActivity />
+            
+            <div className="flex flex-col">
+              <QuickActions />
+              <StockStatus />
+            </div>
+          </div>
+          
+          {/* Recent Transactions */}
+          <TransactionsTable />
+          
+          {/* Footer */}
+          <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400 pb-6">
+            <p>© {new Date().getFullYear()} Copper Manufacturing Stock Management System. All rights reserved.</p>
+            <p className="mt-1">Version 1.0.0</p>
+          </footer>
         </div>
-        
-        {/* Recent Transactions */}
-        <TransactionsTable />
-        
-        {/* Footer */}
-        <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400 pb-6">
-          <p>© {new Date().getFullYear()} Copper Manufacturing Stock Management System. All rights reserved.</p>
-          <p className="mt-1">Version 1.0.0</p>
-        </footer>
-      </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </>
   );
 };
 

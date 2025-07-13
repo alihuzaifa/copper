@@ -27,6 +27,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Helmet } from 'react-helmet-async';
+import { useSelector } from 'react-redux';
+import { getSoftwareName } from '@/lib/utils';
+import defaultSoftwareDetail from '@/softwareSetting';
 
 // Constants
 const PAGE_SIZES = [10, 20, 30, 50, 100];
@@ -104,6 +108,9 @@ export default function CheckPage() {
   const [filters, setFilters] = useState<FilterState>({
     search: "",
   });
+
+  const { apiSettings } = useSelector((state: any) => state.settings);
+  const softwareName = getSoftwareName(apiSettings, defaultSoftwareDetail.softwareName);
 
   const form = useForm<CheckFormValues>({
     resolver: zodResolver(checkSchema),
@@ -315,11 +322,31 @@ export default function CheckPage() {
     {
       header: "Status",
       accessorKey: "status" as keyof Check,
-      cell: (row: Check) => (
-        <span className={`badge ${getStatusBadgeClass(row.status)}`}>
-          {capitalize(row.status)}
-        </span>
-      ),
+      cell: (row: Check) => {
+        let badgeClass = "";
+        switch (row.status) {
+          case 'pending':
+            badgeClass = "bg-yellow-200/80 text-yellow-900";
+            break;
+          case 'cleared':
+            badgeClass = "bg-green-200/80 text-green-900";
+            break;
+          case 'bounced':
+            badgeClass = "bg-red-200/80 text-red-900";
+            break;
+          case 'cancelled':
+            badgeClass = "bg-gray-200/80 text-gray-900";
+            break;
+          default:
+            badgeClass = "bg-blue-200/80 text-blue-900";
+        }
+        return (
+          <span className={`px-3 py-1 rounded-full font-semibold text-xs inline-block shadow-sm ${badgeClass}`}
+            style={{ verticalAlign: 'middle' }}>
+            {capitalize(row.status)}
+          </span>
+        );
+      },
     },
     {
       header: "Actions",
@@ -376,194 +403,200 @@ export default function CheckPage() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{editMode ? 'Edit Check' : 'Add New Check'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="bankName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Bank Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter bank name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="accountTitle"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Account Title</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter account title" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="checkNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Check Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter check number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+    <>
+      <Helmet>
+        <title>{softwareName} | Checks</title>
+        <meta name="description" content="Manage checks for your copper wire manufacturing management system." />
+      </Helmet>
+      <DashboardLayout>
+        <div className="py-6 px-4 sm:px-6 lg:px-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>{editMode ? 'Edit Check' : 'Add New Check'}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="bankName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Bank Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter bank name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="accountTitle"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Account Title</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter account title" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="checkNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Check Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter check number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="amount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Amount</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="Enter amount"
+                              {...field}
+                              onChange={(e) => field.onChange(Number(e.target.value))}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="issueDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Issue Date</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="dueDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Due Date</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
                     control={form.control}
-                    name="amount"
+                    name="notes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Amount</FormLabel>
+                        <FormLabel>Notes</FormLabel>
                         <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="Enter amount"
+                          <Textarea
+                            placeholder="Enter notes (optional)"
                             {...field}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="issueDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Issue Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="dueDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Due Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
 
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Enter notes (optional)"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end gap-2">
-                  {editMode && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => {
-                        setEditMode(false);
-                        setSelectedCheckId("");
-                        form.reset();
-                      }}
-                    >
-                      Cancel
+                  <div className="flex justify-end gap-2">
+                    {editMode && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => {
+                          setEditMode(false);
+                          setSelectedCheckId("");
+                          form.reset();
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button type="submit" disabled={isLoading}>
+                      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {editMode ? 'Update Check' : 'Add Check'}
                     </Button>
-                  )}
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {editMode ? 'Update Check' : 'Add Check'}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Checks List</CardTitle>
-            <div className="flex flex-col md:flex-row gap-4 mt-4">
-              <div className="flex-1 flex gap-4">
-                <form onSubmit={handleSearch} className="flex-1 flex gap-2">
-                  <Input
-                    placeholder="Search by bank name, account title, or check number..."
-                    value={filters.search}
-                    onChange={(e) => handleFilterChange('search', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button type="submit" variant="outline">
-                    <Search className="h-4 w-4" />
-                  </Button>
+                  </div>
                 </form>
+              </Form>
+            </CardContent>
+          </Card>
+          <div className="mb-6" />
+          <Card>
+            <CardHeader>
+              <CardTitle>Checks List</CardTitle>
+              <div className="flex flex-col md:flex-row gap-4 mt-4">
+                <div className="flex-1 flex gap-4">
+                  <form onSubmit={handleSearch} className="flex-1 flex gap-2">
+                    <Input
+                      placeholder="Search by bank name, account title, or check number..."
+                      value={filters.search}
+                      onChange={(e) => handleFilterChange('search', e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button type="submit" variant="outline">
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </form>
+                </div>
+                <div className="flex gap-4">
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(value) => setPageSize(Number(value))}
+                  >
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue placeholder="Page size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZES.map((size) => (
+                        <SelectItem key={size} value={size.toString()}>
+                          {size}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="flex gap-4">
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(value) => setPageSize(Number(value))}
-                >
-                  <SelectTrigger className="w-[100px]">
-                    <SelectValue placeholder="Page size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAGE_SIZES.map((size) => (
-                      <SelectItem key={size} value={size.toString()}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DataTable
-              columns={columns}
-              data={checks}
-              isLoading={pageLoading}
-              pageSize={pageSize}
-              totalItems={totalItems}
-              currentPage={page}
-              onPageChange={setPage}
-            />
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                columns={columns}
+                data={checks}
+                isLoading={pageLoading}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                currentPage={page}
+                onPageChange={setPage}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    </>
   );
 }

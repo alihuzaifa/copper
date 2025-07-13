@@ -20,6 +20,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Filter, Calendar } from "lucide-react";
+import { Helmet } from 'react-helmet-async';
+import { useSelector } from 'react-redux';
+import { getSoftwareName } from '@/lib/utils';
+import defaultSoftwareDetail from '@/softwareSetting';
 
 // Transaction interface (since shared schema is removed)
 interface Transaction {
@@ -40,6 +44,9 @@ const TransactionHistory = () => {
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: [API_ENDPOINTS.transactions],
   });
+
+  const { apiSettings } = useSelector((state: any) => state.settings);
+  const softwareName = getSoftwareName(apiSettings, defaultSoftwareDetail.softwareName);
 
   // Filter transactions based on search, type, and date
   const filteredTransactions = transactions
@@ -121,81 +128,87 @@ const TransactionHistory = () => {
   ];
 
   return (
-    <DashboardLayout>
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold font-sans">Transaction History</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            View and filter all transaction records
-          </p>
+    <>
+      <Helmet>
+        <title>{softwareName} | Transaction History</title>
+        <meta name="description" content="View all transaction history for your copper wire manufacturing management." />
+      </Helmet>
+      <DashboardLayout>
+        <div className="py-6 px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold font-sans">Transaction History</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+              View and filter all transaction records
+            </p>
+          </div>
+
+          <Card>
+            <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
+              <CardTitle className="font-sans text-lg">All Transactions</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              {/* Search and filter controls */}
+              <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <Input
+                    placeholder="Search transactions..."
+                    className="pl-8"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Filter by type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_types">All Types</SelectItem>
+                      <SelectItem value="purchase">Purchase</SelectItem>
+                      <SelectItem value="process">Process</SelectItem>
+                      <SelectItem value="verify">Verify</SelectItem>
+                      <SelectItem value="create">Create</SelectItem>
+                      <SelectItem value="update">Update</SelectItem>
+                      <SelectItem value="delete">Delete</SelectItem>
+                      <SelectItem value="production">Production</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <Select value={dateFilter} onValueChange={setDateFilter}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Filter by date" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_time">All Time</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="week">Last 7 Days</SelectItem>
+                      <SelectItem value="month">Last 30 Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Transactions table */}
+              <DataTable
+                columns={columns}
+                data={paginatedTransactions}
+                isLoading={isLoading}
+                pageSize={DEFAULT_PAGE_SIZE}
+                totalItems={filteredTransactions.length}
+                currentPage={page}
+                onPageChange={setPage}
+              />
+            </CardContent>
+          </Card>
         </div>
-
-        <Card>
-          <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
-            <CardTitle className="font-sans text-lg">All Transactions</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            {/* Search and filter controls */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Input
-                  placeholder="Search transactions..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Filter by type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all_types">All Types</SelectItem>
-                    <SelectItem value="purchase">Purchase</SelectItem>
-                    <SelectItem value="process">Process</SelectItem>
-                    <SelectItem value="verify">Verify</SelectItem>
-                    <SelectItem value="create">Create</SelectItem>
-                    <SelectItem value="update">Update</SelectItem>
-                    <SelectItem value="delete">Delete</SelectItem>
-                    <SelectItem value="production">Production</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <Select value={dateFilter} onValueChange={setDateFilter}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Filter by date" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all_time">All Time</SelectItem>
-                    <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="week">Last 7 Days</SelectItem>
-                    <SelectItem value="month">Last 30 Days</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Transactions table */}
-            <DataTable
-              columns={columns}
-              data={paginatedTransactions}
-              isLoading={isLoading}
-              pageSize={DEFAULT_PAGE_SIZE}
-              totalItems={filteredTransactions.length}
-              currentPage={page}
-              onPageChange={setPage}
-            />
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </>
   );
 };
 

@@ -369,7 +369,6 @@ const AddDrawProcessing = ({ onDataChange }: AddDrawProcessingProps) => {
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Drawer User</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kacha Product</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Amount</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">History</th>
                   </tr>
                 </thead>
@@ -379,7 +378,6 @@ const AddDrawProcessing = ({ onDataChange }: AddDrawProcessingProps) => {
                       <td className="px-4 py-2">{record.drawerUserId.name}</td>
                       <td className="px-4 py-2">{record.kachaName}</td>
                       <td className="px-4 py-2">{record.quantity}</td>
-                      <td className="px-4 py-2">{record.totalAmount}</td>
                       <td className="px-4 py-2">
                         <Button
                           variant="ghost"
@@ -393,7 +391,7 @@ const AddDrawProcessing = ({ onDataChange }: AddDrawProcessingProps) => {
                   ))}
                   {records.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={5} className="text-center py-4 text-gray-500 dark:text-gray-400">
+                      <td colSpan={4} className="text-center py-4 text-gray-500 dark:text-gray-400">
                         No records found.
                       </td>
                     </tr>
@@ -410,53 +408,46 @@ const AddDrawProcessing = ({ onDataChange }: AddDrawProcessingProps) => {
           <DialogHeader>
             <DialogTitle>History</DialogTitle>
           </DialogHeader>
-          <div className="overflow-x-auto max-h-80 overflow-y-auto scrollbar-none">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date/Time</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records
-                  .filter((r) => r._id === historyModalRecordId)
-                  .map((record) =>
-                    record.history.map((h: any) => (
-                      <tr key={h._id} className="border-b border-gray-200 dark:border-gray-700">
-                        <td className="px-4 py-2">
-                          <span
-                            className={
-                              h.action === "created" || h.action === "added"
-                                ? "text-green-600"
-                                : h.action === "return" || h.action === "returned"
-                                ? "text-blue-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {h.action.charAt(0).toUpperCase() + h.action.slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2">{record.status.charAt(0).toUpperCase() + record.status.slice(1)}</td>
-                        <td className="px-4 py-2">{dayjs(h.actionDate).format("YYYY-MM-DD HH:mm:ss")}</td>
-                        <td className="px-4 py-2">{h.quantity}</td>
-                        <td className="px-4 py-2">{h.notes}</td>
-                      </tr>
-                    ))
-                  )}
-                {!records.some((r) => r._id === historyModalRecordId) && (
-                  <tr>
-                    <td colSpan={5} className="text-center py-4 text-gray-500 dark:text-gray-400">
-                      No history found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {(() => {
+            const record = records.find((r) => r._id === historyModalRecordId);
+            let content;
+            if (record && record.history.length > 0) {
+              content = (
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                  {record.history.map((h: any) => (
+                    <div
+                      key={h._id}
+                      className="p-4 rounded-lg border border-gray-200 dark:border-gray-700"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium capitalize text-primary">
+                          {h.action}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {dayjs(h.actionDate).format("MMM D, YYYY")}
+                        </span>
+                      </div>
+                      <div className="text-sm space-y-1">
+                        <p>Quantity: {h.quantity} kg</p>
+                        {h.notes && (
+                          <p className="text-gray-600 dark:text-gray-400">
+                            {h.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            } else {
+              content = (
+                <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                  No history found.
+                </div>
+              );
+            }
+            return content;
+          })()}
         </DialogContent>
       </Dialog>
     </>

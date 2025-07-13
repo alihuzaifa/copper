@@ -1,3 +1,5 @@
+import defaultSoftwareDetail from "@/softwareSetting";
+
 interface AuthLayoutProps {
   children: React.ReactNode;
   title: string;
@@ -18,7 +20,7 @@ export function AuthLayout({ children, title, description }: AuthLayoutProps) {
           {/* Logo */}
           <div className="flex flex-col space-y-2 text-center">
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
-              CopperWire Pro
+              {defaultSoftwareDetail.softwareName}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Advanced Wire Manufacturing Management

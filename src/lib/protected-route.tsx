@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const token = useSelector((state: RootState) => state.auth.token);
   if (!token) {
-    return <Redirect to="/login" />;
+    return <Redirect to="/" />;
   }
 
   return <>{children}</>;

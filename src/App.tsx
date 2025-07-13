@@ -1,9 +1,11 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ProtectedRoute } from "./lib/protected-route";
 import NotFound from "@/pages/not-found";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store/store";
 
 // Auth Pages
 import LoginPage from "@/pages/auth/login";
@@ -32,18 +34,62 @@ import PvcPurchase from "@/pages/workflow/pvc-purchase";
 import Production from "@/pages/workflow/production";
 import KhataSalePage from "@/pages/workflow/khata-sale";
 
+// AuthGuard component to handle root route logic
+function AuthGuard() {
+  const token = useSelector((state: RootState) => state.auth.token);
+  
+  if (token) {
+    return <Redirect to="/dashboard" />;
+  }
+  
+  return <LoginPage />;
+}
+
+// AuthPageGuard component to prevent authenticated users from accessing auth pages
+function AuthPageGuard({ children }: { children: React.ReactNode }) {
+  const token = useSelector((state: RootState) => state.auth.token);
+  
+  if (token) {
+    return <Redirect to="/dashboard" />;
+  }
+  
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <ThemeProvider>
       <TooltipProvider>
         <Switch>
-          {/* Public Auth Routes */}
-          <Route path="/" component={LoginPage} />
-          <Route path="/login" component={LoginPage} />
-          <Route path="/signup" component={SignupPage} />
-          <Route path="/forgot-password" component={ForgotPasswordPage} />
-          <Route path="/verify-otp" component={VerifyOtpPage} />
-          <Route path="/reset-password" component={ResetPasswordPage} />
+          {/* Root route - redirects based on auth status */}
+          <Route path="/" component={AuthGuard} />
+          
+          {/* Public Auth Routes - redirect to dashboard if already authenticated */}
+          <Route path="/login">
+            <AuthPageGuard>
+              <LoginPage />
+            </AuthPageGuard>
+          </Route>
+          <Route path="/signup">
+            <AuthPageGuard>
+              <SignupPage />
+            </AuthPageGuard>
+          </Route>
+          <Route path="/forgot-password">
+            <AuthPageGuard>
+              <ForgotPasswordPage />
+            </AuthPageGuard>
+          </Route>
+          <Route path="/verify-otp">
+            <AuthPageGuard>
+              <VerifyOtpPage />
+            </AuthPageGuard>
+          </Route>
+          <Route path="/reset-password">
+            <AuthPageGuard>
+              <ResetPasswordPage />
+            </AuthPageGuard>
+          </Route>
 
           {/* Protected Main Routes */}
           <Route path="/dashboard">

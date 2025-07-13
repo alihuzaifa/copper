@@ -28,21 +28,20 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 interface ApiUser {
-  status: string;
-  totalAmount: number;
-  paidAmount: number;
-  remainingAmount: number;
   _id: string;
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
   categoryId: number;
-  email: string;
   role: string;
+  status: 'active' | 'inactive';
   shopId: string;
   verified: boolean;
   createdAt: string;
-  transactions: any[];
-  paymentHistory: any[];
   updatedAt: string;
-  __v: number;
+  totalAmount?: number;
+  paidAmount?: number;
+  remainingAmount?: number;
 }
 
 interface LoginResponse {
@@ -76,7 +75,7 @@ export function LoginForm() {
       dispatch(setAuthLoading(true));
       dispatch(setAuthError(null));
       
-      // Call login API
+      // Call login API using the correct endpoint
       const response = await request<LoginFormValues, LoginResponse>({
         url: '/users/login',
         method: 'POST',
@@ -92,14 +91,14 @@ export function LoginForm() {
         // Map API user to store User type
         const userData: User = {
           id: apiUser._id,
-          name: apiUser.email.split('@')[0], // Use email username as name
-          email: apiUser.email,
+          name: apiUser.name || apiUser.email?.split('@')[0] || 'User',
+          email: apiUser.email || '',
           role: apiUser.role
         };
         
-        // Store raw token without Bearer prefix
+        // Store token
         const token = response.data.token;
-        dispatch(setToken(token.replace('Bearer ', '')));
+        dispatch(setToken(token));
         dispatch(setUser(userData));
         
         // Show success toast
@@ -178,6 +177,17 @@ export function LoginForm() {
               </FormItem>
             )}
           />
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="link"
+              className="px-0 text-sm"
+              onClick={() => navigate("/forgot-password")}
+            >
+              Forgot Password?
+            </Button>
+          </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
