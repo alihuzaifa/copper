@@ -3,7 +3,6 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
-  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -205,6 +204,7 @@ const ProductionPage = () => {
     control: outputControl,
     handleSubmit: handleOutputSubmit,
     reset: resetOutput,
+    setError: setOutputError,
     formState: { errors: outputErrors },
   } = useForm({
     resolver: zodResolver(outputSchema),
@@ -387,6 +387,19 @@ const ProductionPage = () => {
   // Finalize production
   const onFinalize = async (data: any) => {
     if (readyCopperInputs.length === 0 && pvcInputs.length === 0) return;
+
+    // Calculate total input quantity
+    const totalReadyCopper = readyCopperInputs.reduce((sum, rc) => sum + Number(rc.quantity), 0);
+    const totalPVC = pvcInputs.reduce((sum, pvc) => sum + Number(pvc.quantity), 0);
+    const totalInput = totalReadyCopper + totalPVC;
+    const outputQty = Number(data.quantity);
+    if (outputQty > totalInput) {
+      setOutputError("quantity", {
+        type: "manual",
+        message: `Output quantity (${outputQty}) cannot be greater than total input quantity (${totalInput}).`,
+      });
+      return;
+    }
     
     try {
       setLoading(true);
@@ -782,26 +795,13 @@ const ProductionPage = () => {
                   <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead>
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          ID
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Inputs
-                        </th>
+                        {/* Removed Inputs column */}
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                           Output
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Mazdoori
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Date
-                        </th>
+                        {/* Removed Mazdoori column */}
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                           History
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Delete
                         </th>
                       </tr>
                     </thead>
@@ -811,36 +811,11 @@ const ProductionPage = () => {
                           key={prod._id}
                           className="border-b border-gray-200 dark:border-gray-700"
                         >
-                          <td className="px-4 py-2">
-                            PRD-{prod._id.toString().slice(-4)}
-                          </td>
-                          <td className="px-4 py-2">
-                            <div>
-                              <b>Ready Copper:</b>
-                              <ul>
-                                {prod.readyCopperInputs.map((rc, idx) => (
-                                  <li key={idx}>
-                                    {rc.wireSize} - {rc.quantity} kg
-                                  </li>
-                                ))}
-                              </ul>
-                              <b>PVC:</b>
-                              <ul>
-                                {prod.pvcInputs.map((pvc, idx) => (
-                                  <li key={idx}>
-                                    {pvc.pvcColor} - {pvc.quantity} kg
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          </td>
+                          {/* Removed Inputs cell */}
                           <td className="px-4 py-2">
                             {prod.output.materialName} - {prod.output.quantity} kg
                           </td>
-                          <td className="px-4 py-2">{prod.output.mazdoori} PKR</td>
-                          <td className="px-4 py-2">
-                            {dayjs(prod.createdAt).format("YYYY-MM-DD HH:mm")}
-                          </td>
+                          {/* Removed Mazdoori cell */}
                           <td className="px-4 py-2">
                             <Button
                               variant="ghost"
@@ -850,24 +825,12 @@ const ProductionPage = () => {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </td>
-                          <td className="px-4 py-2">
-                            <Button
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => {
-                                setDeleteId(prod._id);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </td>
                         </tr>
                       ))}
                       {productions.length === 0 && !productionsLoading && (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={2}
                             className="text-center py-4 text-gray-500 dark:text-gray-400"
                           >
                             No production records found.
@@ -908,62 +871,46 @@ const ProductionPage = () => {
               <DialogHeader>
                 <DialogTitle>History</DialogTitle>
               </DialogHeader>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Action
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Date/Time
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Notes
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productions
-                      .filter((p) => p._id === historyDialogId)
-                      .map((prod) =>
-                        prod.history.map((h: any) => (
-                          <tr
-                            key={h._id}
-                            className="border-b border-gray-200 dark:border-gray-700"
-                          >
-                            <td className="px-4 py-2">
-                              <span
-                                className={
-                                  h.action === "add"
-                                    ? "text-green-600"
-                                    : "text-red-600"
-                                }
-                              >
-                                {h.action === "add" ? "Add" : "Delete"}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2">
-                              {dayjs(h.date).format("YYYY-MM-DD HH:mm:ss")}
-                            </td>
-                            <td className="px-4 py-2">
-                              {h.notes}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    {!productions.some((p) => p._id === historyDialogId) && (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-center py-4 text-gray-500 dark:text-gray-400"
+              <div className="max-h-[400px] overflow-y-auto space-y-4">
+                {productions
+                  .filter((p) => p._id === historyDialogId)
+                  .map((prod) =>
+                    prod.history.length > 0 ? (
+                      prod.history.map((h: any) => (
+                        <div
+                          key={h._id}
+                          className="rounded-lg border border-gray-200 dark:border-gray-700 bg-muted/50 p-4 flex flex-col gap-2"
                         >
-                          No history found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                          <div className="flex items-center gap-4">
+                            <span
+                              className={
+                                h.action === "add"
+                                  ? "text-green-600 font-semibold"
+                                  : "text-red-600 font-semibold"
+                              }
+                            >
+                              {h.action === "add" ? "Add" : "Delete"}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {dayjs(h.date).format("YYYY-MM-DD HH:mm:ss")}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line">
+                            {h.notes}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                        No history found.
+                      </div>
+                    )
+                  )}
+                {!productions.some((p) => p._id === historyDialogId) && (
+                  <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                    No history found.
+                  </div>
+                )}
               </div>
             </DialogContent>
           </Dialog>
