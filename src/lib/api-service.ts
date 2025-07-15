@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { store } from '@/store/store';
 import { setToken, setUser, logout } from '@/store/slices/authSlice';
+import { resetSettings } from '@/store/slices/settingsSlice';
 import { addWorkflowItem, updateWorkflowItem } from '@/store/slices/workflowSlice';
 
 // Types
@@ -73,6 +74,7 @@ apiClient.interceptors.response.use(
   (error: AxiosError<{ message?: string; errors?: Record<string, string[]> }>) => {
     if (error.response?.status === 401) {
       store.dispatch(logout());
+      store.dispatch(resetSettings());
       window.location.href = '/login';
     }
     return Promise.reject({
@@ -163,6 +165,7 @@ export const apiService = {
     // Logout
     logout: async () => {
       store.dispatch(logout());
+      store.dispatch(resetSettings());
       await makeApiCall({ url: '/auth/logout', method: 'POST' });
     },
 

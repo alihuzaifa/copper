@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "@/store/slices/authSlice";
+import { resetSettings } from "@/store/slices/settingsSlice";
 import type { RootState } from "@/store/store";
 import defaultSoftwareDetail from "@/softwareSetting";
 
@@ -53,6 +54,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
 
   const handleLogout = () => {
     dispatch(logout());
+    dispatch(resetSettings());
     navigate("/login");
   };
   
